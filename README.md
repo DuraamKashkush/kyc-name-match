@@ -1,6 +1,6 @@
 # Arabic name matching for KYC
 
-**[Open the tool →](https://omrankashkosh-coder.github.io/kyc-name-match/)**  ·  **[Run the test suite →](https://omrankashkosh-coder.github.io/kyc-name-match/tests.html)**
+**[Open the tool →](https://duraamkashkush.github.io/kyc-name-match/)**  ·  **[Run the test suite →](https://duraamkashkush.github.io/kyc-name-match/tests.html)**
 
 Paste two identity records, get a match / refer / no-match decision, and a written reason for
 every point awarded or docked. Deterministic, rule-based, and entirely client-side.
@@ -127,7 +127,7 @@ node tests.js
 ```
 
 83 assertions, no framework, no dependencies. The same file runs in the browser at
-[tests.html](https://omrankashkosh-coder.github.io/kyc-name-match/tests.html).
+[tests.html](https://duraamkashkush.github.io/kyc-name-match/tests.html).
 
 Roughly half of them exist to hold the engine **back**. An engine tuned to match aggressively
 across transliterations will happily match two different people, so the suite asserts that
