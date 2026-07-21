@@ -49,8 +49,10 @@ var METHOD_PROSE = [
 '<p>So the engine is rule-based, and every point it awards or docks names the rule that ',
 'produced it. Running the same two records with the same thresholds on the same date ',
 'reproduces the same result and the same case note, exactly. A side effect of that choice ',
-'is that there is no API key, no backend and no network call — the page you are reading ',
-'does all of its work in your browser, and nothing you type into it leaves the tab.</p>',
+'is that there is no API key, no backend and no model to call — the page you are reading ',
+'does all of its work in your browser, and nothing you type into it leaves the tab. The one ',
+'probabilistic component, the document reader described further down, sits deliberately ',
+'outside the decision and cannot move a verdict.</p>',
 
 '<h2>The pipeline</h2>',
 
@@ -181,6 +183,58 @@ var METHOD_PROSE = [
 '<p>Both TD3 (passports, two lines of forty-four) and TD1 (ID cards, three lines of thirty) ',
 'are read. TD2 is recognised and declined rather than guessed at. Load a sample case and ',
 'change any character in the zone to watch the digits fail.</p>',
+
+'<h2>Reading a document image</h2>',
+
+'<p>A document image can be read to fill the form in. It is worth being precise about where ',
+'that sits, because it is the one part of this tool that is not deterministic.</p>',
+
+'<p><strong>Optical character recognition takes no part in the decision.</strong> It proposes ',
+'values into the form. A person accepts them. The engine then runs on what that person left ',
+'in the fields, exactly as if they had typed it — the matching code does not reference the ',
+'reader, does not know it exists, and produces identical output whether or not it has been ',
+'loaded. There is a test that asserts precisely that.</p>',
+
+'<p>The reason is the claim at the top of this page. A verdict here is reproducible and ',
+'explainable rule by rule. Optical recognition is a machine\'s best guess at what some pixels ',
+'say; the moment a misread character could move a verdict, that claim would be gone. So the ',
+'reader sits outside the boundary, which is also how document capture works in a real ',
+'verification queue: the machine proposes, a human disposes, and the file records which was ',
+'which.</p>',
+
+'<h3>One part of a document can prove its own reading</h3>',
+
+'<p>The machine-readable zone carries check digits. If the reader mistakes a character, the ',
+'arithmetic fails and the tool says so rather than believing it. That gives two tiers of ',
+'machine-read value, and they are not treated alike:</p>',
+
+'<table class="translit">',
+'<tr><td>Zone, check digits verify</td><td>confirmed by arithmetic — no second pair of eyes needed</td></tr>',
+'<tr><td>Zone, check digits fail</td><td>a misread or a document that does not add up; reported either way</td></tr>',
+'<tr><td>Printed page</td><td>nothing can validate it — capped at refer until a human accepts it</td></tr>',
+'</table>',
+
+'<p>Because the zone repeats the name, date of birth, expiry and document number in a form ',
+'that can be checked, it is preferred over the printed side wherever it reads. Guessing at ',
+'printed text while a verified copy of the same data sits at the foot of the page would be ',
+'the wrong way round.</p>',
+
+'<h3>Correcting a misread, without guessing</h3>',
+
+'<p>Every position in the zone has a fixed meaning, so the layout says which characters must ',
+'be digits and which must be letters. A letter O sitting in the six positions that hold a date ',
+'of birth is a misread zero — not a judgement call, and the correction is reported rather than ',
+'applied silently. The check digits then confirm whether the correction was right, which is ',
+'the part that makes it safe to do at all.</p>',
+
+'<p>Two honest limitations. There is no published Tesseract model for OCR-B, the typeface the ',
+'zone is set in, so this runs on the general English model with the character set restricted ',
+'to the zone\'s own alphabet; a photograph taken at an angle in poor light will often not read ',
+'at all. And the bundled specimen is a clean vector drawing, so it reads far more easily than ',
+'a real photograph would — it demonstrates the pipeline, not the accuracy you would get in a ',
+'branch.</p>',
+
+'<p>The image itself never leaves the browser, and neither does anything read from it.</p>',
 
 '<h2>Every rule the engine can cite</h2>',
 

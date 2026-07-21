@@ -546,6 +546,158 @@ var TEST_SUITE = (function () {
     eq(c.status, 'ok', 'zone name should agree with the Arabic printed name: ' + c.statusLabel);
   });
 
+  /* ── OCR boundary ─────────────────────────────────────────────────────── */
+
+  group('OCR — kept outside the decision path');
+
+  var O = (typeof module !== 'undefined' && module.exports)
+    ? require('./ocr.js') : (typeof OCR !== 'undefined' ? OCR : null);
+
+  test('The engine contains no reference to OCR at all', function () {
+    // The boundary is the whole point, so it is checked structurally rather
+    // than trusted. engine.js must not mention the reader in any form.
+    if (typeof require === 'undefined') return;   // browser run: skipped
+    var src = require('fs').readFileSync(__dirname + '/engine.js', 'utf8');
+    ok(!/\bOCR\b/.test(src.replace(/'OCR-[12]'|OCR-[12]/g, '')),
+       'engine.js references OCR beyond the two rule ids');
+    ok(src.indexOf('ocr.js') < 0, 'engine.js must not require ocr.js');
+    ok(src.indexOf('Tesseract') < 0, 'engine.js must not reference Tesseract');
+  });
+  test('A verdict is identical whether or not the reader is loaded', function () {
+    // The Node suite loads ocr.js above; the engine result must be unaffected.
+    var a = rec({ fullName: 'محمد أحمد السيد' });
+    var b = rec({ fullName: 'Muhammed Elsayed' });
+    var before = K.caseNote(K.compare(a, b, { today: TODAY }));
+    ok(O, 'ocr.js should be loadable');
+    var after = K.caseNote(K.compare(a, b, { today: TODAY }));
+    eq(after, before, 'loading the reader changed a verdict');
+  });
+  test('Unconfirmed machine-read text caps the verdict', function () {
+    var a = rec({ fullName: 'Mohammad Al-Sayed' });
+    var b = rec({ fullName: 'Mohammad Al-Sayed' });
+    var plain = K.compare(a, b, { today: TODAY });
+    var ocr = K.compare(a, b, {
+      today: TODAY, provenance: { a: { fullName: 'ocr-unconfirmed' } },
+    });
+    eq(plain.verdict, 'MATCH', 'identical names match when typed');
+    eq(ocr.nameScore, plain.nameScore, 'provenance must not change the score');
+    eq(ocr.verdict, 'REFER', 'unconfirmed machine-read text must cap');
+    ok(ocr.hardStops.some(function (h) { return h.rule === 'OCR-1'; }), 'OCR-1 must cap');
+  });
+  test('Check-digit-validated text does NOT need a second pair of eyes', function () {
+    var res = K.compare(rec({ fullName: 'Mohammad Al-Sayed' }),
+                        rec({ fullName: 'Mohammad Al-Sayed' }),
+                        { today: TODAY, provenance: { a: { dob: 'mrz-validated' } } });
+    eq(res.verdict, 'MATCH', 'arithmetic already confirmed it');
+    ok(!res.hardStops.some(function (h) { return h.rule === 'OCR-1'; }), 'must not cap');
+  });
+  test('The case note discloses what was machine-read', function () {
+    var note = K.caseNote(K.compare(
+      rec({ fullName: 'Mohammad Al-Sayed' }), rec({ fullName: 'Mohammad Al-Sayed' }),
+      { today: TODAY, provenance: { a: { dob: 'mrz-validated', fullName: 'ocr-unconfirmed' } } }));
+    ok(note.indexOf('HOW THE VALUES WERE OBTAINED') >= 0, 'note must have a provenance section');
+    ok(note.indexOf('NOT yet confirmed') >= 0, 'note must flag the unconfirmed field');
+  });
+  test('A note stays silent about provenance when everything was typed', function () {
+    var note = K.caseNote(K.compare(rec({ fullName: 'Mohammad Al-Sayed' }),
+                                    rec({ fullName: 'Mohammad Al-Sayed' }), { today: TODAY }));
+    ok(note.indexOf('HOW THE VALUES WERE OBTAINED') < 0,
+       'typed values are the default and need no disclosure');
+  });
+
+  group('OCR — reconstructing a misread zone');
+
+  var CLEAN_MRZ = 'P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<\n' +
+                  'L898902C36UTO7408122F1204159ZE184226B<<<<<10';
+
+  test('Filler characters are recovered from OCR junk', function () {
+    var junk = CLEAN_MRZ.split('\n').map(function (l) { return l.replace(/</g, '«'); }).join('\n');
+    var asm = O.assembleMrz(O.candidateLines(junk));
+    ok(asm, 'should find a zone');
+    eq(asm.format, 'TD3');
+    eq(asm.lines.join('\n'), CLEAN_MRZ, 'fillers must be restored');
+  });
+  test('Letters misread inside a date are corrected to digits', function () {
+    // O for 0 and I for 1 are the classic OCR-B confusions. Positions 14-19 of
+    // the second line are a date, so those cannot legally be letters.
+    var noisy = CLEAN_MRZ.replace('7408122', '74O8I22').replace('1204159', '12O4I59');
+    var asm = O.assembleMrz(O.candidateLines(noisy));
+    var fixed = O.correctByLayout(asm.format, asm.lines);
+    eq(fixed.lines.join('\n'), CLEAN_MRZ, 'the zone should be fully recovered');
+    eq(fixed.corrections.length, 4, 'four characters should have been corrected');
+    // And the recovery is confirmed by arithmetic, not by hope.
+    eq(M.parse(fixed.lines.join('\n'), 2026).allValid, true);
+  });
+  test('Correction never touches positions that may legally be letters', function () {
+    // The name field is alphabetic throughout, so nothing there is rewritten.
+    var asm = O.assembleMrz(O.candidateLines(CLEAN_MRZ));
+    var fixed = O.correctByLayout('TD3', asm.lines);
+    eq(fixed.corrections.length, 0, 'a clean zone needs no corrections');
+    eq(fixed.lines[0], CLEAN_MRZ.split('\n')[0], 'the name line must be untouched');
+  });
+  test('Correction cannot rescue a genuinely wrong zone', function () {
+    // Changing a digit to another digit is not a character-class error, so the
+    // corrector leaves it and the check digits catch it. Correction must never
+    // be able to manufacture a passing document.
+    var tampered = CLEAN_MRZ.replace('L898902C36', 'L898902C46');
+    var fixed = O.correctByLayout('TD3', tampered.split('\n'));
+    eq(M.parse(fixed.lines.join('\n'), 2026).allValid, false,
+       'a real alteration must still fail');
+  });
+  test('Nonsense is reported rather than forced into a shape', function () {
+    eq(O.assembleMrz(O.candidateLines('hello world\nthis is not a document')), null);
+  });
+  test('A verified zone does NOT validate the name', function () {
+    // The check digits cover the data line only — in TD3 the composite spans
+    // line 2, in TD1 it excludes line 3. The name is protected in neither, so a
+    // zone that verifies says nothing about the name printed in it. Claiming
+    // otherwise would be a false assurance about the one field this whole tool
+    // exists to compare.
+    var parsed = M.parse(CLEAN_MRZ, 2026);
+    eq(parsed.allValid, true, 'the zone itself verifies');
+
+    var res = O.buildProposals(
+      { format: 'TD3', text: CLEAN_MRZ, corrections: [], parsed: parsed }, '');
+    ok(res.ok, 'should produce proposals');
+
+    function validatedFor(field) {
+      var p = res.proposals.filter(function (x) { return x.field === field; })[0];
+      ok(p, 'expected a proposal for ' + field);
+      return p.validated;
+    }
+    eq(validatedFor('dob'), true, 'date of birth carries a check digit');
+    eq(validatedFor('expiry'), true, 'expiry carries a check digit');
+    eq(validatedFor('docNumber'), true, 'document number carries a check digit');
+    eq(validatedFor('fullName'), false, 'NO check digit covers the name');
+    eq(validatedFor('country'), false, 'nationality sits outside the composite');
+  });
+  test('Nothing read off the printed page may claim validation', function () {
+    var visual = O.buildProposals(null, 'DATE OF BIRTH 12 AUG 1974');
+    ok(visual.proposals.length > 0, 'printed-page reads should still be offered');
+    ok(visual.proposals.every(function (p) { return !p.validated; }),
+       'the printed side carries no check digits at all');
+  });
+  test('Trailing filler is restored without touching real names', function () {
+    eq(O.restoreTrailingFiller('P<UTOERIKSSON<<ANNA<MARIALLLLLLLLLLLLLLLLLL')
+        .slice(-6), '<<<<<<', 'a long run of one letter at the end is padding');
+    eq(O.restoreTrailingFiller('SMITH<<JOHN<LLL'), 'SMITH<<JOHN<LLL',
+       'a short run is left alone — three letters could be a name');
+    eq(O.restoreTrailingFiller('P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<'),
+       'P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<', 'clean input is unchanged');
+  });
+  test('The layout table agrees with what parse() actually reads', function () {
+    // These are two descriptions of the same standard and must not drift apart.
+    [['TD3', CLEAN_MRZ]].forEach(function (pair) {
+      pair[1].split('\n').forEach(function (line, li) {
+        for (var p = 0; p < line.length; p++) {
+          var t = M.charTypeAt(pair[0], li, p);
+          if (t === 'd') ok(/[0-9]/.test(line[p]), 'expected a digit at line ' + li + ' pos ' + p);
+          if (t === 'a') ok(/[A-Z<]/.test(line[p]), 'expected a letter at line ' + li + ' pos ' + p);
+        }
+      });
+    });
+  });
+
   /* ── Address ──────────────────────────────────────────────────────────── */
 
   group('Address');

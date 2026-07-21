@@ -36,6 +36,12 @@
 
   let lastResult = null;
 
+  /* Where each field's value came from, per record. Only machine-read fields
+   * are tracked; anything absent was typed, which is the default and needs no
+   * disclosure. Editing a field by hand always returns it to 'typed'. */
+  const provenance = { a: {}, b: {} };
+  const pendingProposals = { a: [], b: [] };
+
   /* ── Field construction ──────────────────────────────────────────────── */
 
   function buildFields(side) {
@@ -95,8 +101,252 @@
         wrap.appendChild(hint);
       }
 
+      // Any manual edit clears machine-read provenance for that field: once a
+      // human has changed it, it is their value, not the scanner's.
+      input.addEventListener('input', () => {
+        if (provenance[side][def.key]) {
+          delete provenance[side][def.key];
+          renderSourceChips(side);
+        }
+      });
+
       host.appendChild(wrap);
     });
+  }
+
+  /* ── Reading a document image ────────────────────────────────────────────
+   *
+   * This only ever writes into the form. The engine is called later, on
+   * whatever the operator has left in the fields — see ocr.js for why the
+   * separation matters.
+   */
+
+  const PROV_CHIP = {
+    'mrz-validated': { text: 'MRZ ✓', cls: 'ok',
+      title: 'Read from the machine-readable zone; check digits verify.' },
+    'ocr-unconfirmed': { text: 'OCR ?', cls: 'warn',
+      title: 'Read from the printed page. Nothing validates it — confirm before relying on it.' },
+    'confirmed': { text: 'OCR ✓', cls: 'info',
+      title: 'Read from the printed page and confirmed by you.' },
+  };
+
+  function renderSourceChips(side) {
+    FIELD_DEFS.forEach((def) => {
+      const el = $(`#${side}-${def.key}`);
+      if (!el) return;
+      const label = el.parentElement.querySelector('label');
+      if (!label) return;
+      const existing = label.querySelector('.src-chip');
+      if (existing) existing.remove();
+
+      const state = provenance[side][def.key];
+      if (!state || !PROV_CHIP[state]) return;
+      const chip = document.createElement('span');
+      chip.className = 'src-chip ' + PROV_CHIP[state].cls;
+      chip.textContent = PROV_CHIP[state].text;
+      chip.title = PROV_CHIP[state].title;
+      label.appendChild(chip);
+    });
+  }
+
+  function buildCapturePanel(side) {
+    const fieldset = $(`fieldset[data-record="${side}"]`);
+    const panel = document.createElement('div');
+    panel.className = 'capture';
+    panel.innerHTML =
+      '<div class="capture-actions">' +
+        '<label class="capture-btn">Read from document image' +
+          `<input type="file" accept="image/*" id="${side}-image" hidden>` +
+        '</label>' +
+        `<button type="button" class="link-btn" data-specimen="${side}">Try the specimen</button>` +
+      '</div>' +
+      `<p class="field-hint capture-note">Runs entirely in your browser — the image is never ` +
+        `uploaded. Optical recognition only fills the form in; it takes no part in the ` +
+        `decision, and anything it reads off the printed page has to be confirmed by you.</p>` +
+      `<div class="capture-status" id="${side}-ocr-status" role="status"></div>` +
+      `<div class="proposals" id="${side}-proposals" hidden></div>`;
+
+    fieldset.insertBefore(panel, $(`[data-fields="${side}"]`));
+
+    $(`#${side}-image`).addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) readImage(side, e.target.files[0]);
+      e.target.value = '';
+    });
+    $(`[data-specimen="${side}"]`).addEventListener('click', () => readSpecimen(side));
+  }
+
+  function setStatus(side, text, cls) {
+    const el = $(`#${side}-ocr-status`);
+    el.textContent = text || '';
+    el.className = 'capture-status' + (cls ? ' ' + cls : '');
+  }
+
+  /* The bundled schematic, rasterised so it can go through the same path as a
+   * photograph. A clean vector render is far easier to read than a phone photo,
+   * so this demonstrates the pipeline rather than real-world accuracy. */
+  function readSpecimen(side) {
+    setStatus(side, 'Loading the specimen…');
+    fetch('specimen.svg')
+      .then((r) => { if (!r.ok) throw new Error('specimen.svg not found'); return r.text(); })
+      .then((svg) => new Promise((resolve, reject) => {
+        const blob = new Blob([svg], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+          const c = document.createElement('canvas');
+          c.width = img.width || 1000;
+          c.height = img.height || 660;
+          const ctx = c.getContext('2d');
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(0, 0, c.width, c.height);
+          ctx.drawImage(img, 0, 0);
+          URL.revokeObjectURL(url);
+          c.toBlob((b) => b ? resolve(new File([b], 'specimen.png', { type: 'image/png' }))
+                            : reject(new Error('Could not rasterise the specimen.')), 'image/png');
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not load the specimen.')); };
+        img.src = url;
+      }))
+      .then((file) => readImage(side, file))
+      .catch((e) => setStatus(side, e.message, 'bad'));
+  }
+
+  function readImage(side, file) {
+    if (typeof OCR === 'undefined') {
+      setStatus(side, 'The reader could not be loaded.', 'bad');
+      return;
+    }
+    $(`#${side}-proposals`).hidden = true;
+    setStatus(side, 'Starting the reader… (first run loads it, which takes a moment)');
+
+    OCR.readDocument(file, {
+      onProgress: (status, p) => {
+        setStatus(side, status.replace(/_/g, ' ') + ' — ' + Math.round(p * 100) + '%');
+      },
+    }).then((res) => {
+      if (!res.ok) { setStatus(side, res.error, 'bad'); return; }
+      pendingProposals[side] = res.proposals;
+
+      // Everything read goes straight into the form, because that is what this
+      // is for — but nothing the check digits do not cover counts as confirmed
+      // until a person says so. Until then the verdict is capped, which is the
+      // four-eyes step made mechanical rather than remembered.
+      res.proposals.forEach((p) => applyProposal(side, p));
+      renderProposals(side, res);
+
+      const val = res.proposals.filter((p) => p.validated).length;
+      const pending = res.proposals.length - val;
+      setStatus(side,
+        `Read ${res.proposals.length} field(s); ${val} confirmed by check digit` +
+        (pending ? `, ${pending} awaiting your confirmation.` : '.'),
+        pending ? 'warn' : 'ok');
+    }).catch((e) => setStatus(side, 'Could not read that image: ' + e.message, 'bad'));
+  }
+
+  function labelForField(key) {
+    const d = FIELD_DEFS.filter((f) => f.key === key)[0];
+    return d ? d.label.replace(' (optional)', '') : key;
+  }
+
+  function renderProposals(side, res) {
+    const host = $(`#${side}-proposals`);
+    host.innerHTML = '';
+    host.hidden = false;
+
+    const head = document.createElement('div');
+    head.className = 'proposals-head';
+    head.innerHTML = '<strong>Read from the document</strong>';
+    const acceptAll = document.createElement('button');
+    acceptAll.type = 'button';
+    acceptAll.className = 'secondary small';
+    acceptAll.textContent = 'Confirm all';
+    acceptAll.addEventListener('click', () => {
+      res.proposals.forEach((p) => confirmProposal(side, p));
+      renderProposals(side, res);
+    });
+    head.appendChild(acceptAll);
+    host.appendChild(head);
+
+    res.proposals.forEach((p) => {
+      const row = document.createElement('div');
+      row.className = 'proposal' + (p.validated ? ' validated' : '');
+
+      const main = document.createElement('div');
+      main.className = 'proposal-main';
+      const name = document.createElement('span');
+      name.className = 'proposal-field';
+      name.textContent = labelForField(p.field);
+      main.appendChild(name);
+
+      const val = document.createElement('bdi');
+      val.className = 'proposal-value';
+      val.textContent = p.field === 'mrz' ? p.value.split('\n')[0] + '…' : p.value;
+      main.appendChild(val);
+
+      const tag = document.createElement('span');
+      tag.className = 'src-chip ' + (p.validated ? 'ok' : 'warn');
+      tag.textContent = p.validated ? 'check digit ✓' : 'unvalidated';
+      main.appendChild(tag);
+      row.appendChild(main);
+
+      const note = document.createElement('p');
+      note.className = 'proposal-note';
+      note.textContent = p.note;
+      row.appendChild(note);
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'secondary small';
+      // Validated values need no confirmation; unvalidated ones are already in
+      // the form but do not count until someone accepts them.
+      // No provenance at all means the operator has since edited the field by
+      // hand, so it is their value and needs no confirmation from anyone.
+      const state = provenance[side][p.field];
+      btn.textContent = state === 'mrz-validated' ? 'Verified'
+                      : state === 'confirmed' ? 'Confirmed'
+                      : !state ? 'Edited by you'
+                      : 'Confirm';
+      btn.disabled = state !== 'ocr-unconfirmed';
+      btn.addEventListener('click', () => {
+        confirmProposal(side, p);
+        renderProposals(side, res);
+      });
+      row.appendChild(btn);
+
+      host.appendChild(row);
+    });
+
+    if (res.mrz && res.mrz.corrections && res.mrz.corrections.length) {
+      const fix = document.createElement('p');
+      fix.className = 'proposal-note corrections';
+      fix.textContent =
+        'Corrected ' + res.mrz.corrections.length + ' character(s) whose position in the ' +
+        'zone requires a digit or a letter: ' +
+        res.mrz.corrections.map((c) => `line ${c.line} col ${c.pos} ${c.from}→${c.to}`)
+          .join(', ') + '. The check digits then verified, which is what confirms the fix.';
+      host.appendChild(fix);
+    }
+  }
+
+  /* Fill a field from what was read. Only used on the initial read. */
+  function applyProposal(side, p) {
+    const el = $(`#${side}-${p.field}`);
+    if (!el) return;
+    el.value = p.value;
+    // Values the check digits cover are confirmed by arithmetic; everything
+    // else is in the form but does not count until a person says so.
+    provenance[side][p.field] = p.validated ? 'mrz-validated' : 'ocr-unconfirmed';
+    renderSourceChips(side);
+  }
+
+  /* Confirm whatever is in the field NOW — deliberately not the value that was
+   * originally read. An operator who corrects a misread and then confirms it
+   * must not have their correction thrown away, which is exactly what
+   * re-applying the proposal would do. */
+  function confirmProposal(side, p) {
+    if (!provenance[side][p.field]) return;   // already edited by hand: it is theirs
+    provenance[side][p.field] = 'confirmed';
+    renderSourceChips(side);
   }
 
   function readRecord(side) {
@@ -108,6 +358,9 @@
   }
 
   function writeRecord(side, rec) {
+    // Loading a record replaces every value, so nothing on it is machine-read
+    // any more.
+    provenance[side] = {};
     FIELD_DEFS.forEach((def) => {
       const el = $(`#${side}-${def.key}`);
       el.value = rec[def.key] != null ? rec[def.key] : '';
@@ -143,6 +396,7 @@
     $$('.sample-btn').forEach((b) => {
       b.setAttribute('aria-pressed', String(b.dataset.case === key));
     });
+    ['a', 'b'].forEach(renderSourceChips);
     $('#sample-blurb').textContent = c.blurb;
   }
 
@@ -152,6 +406,13 @@
     $$('.sample-btn').forEach((b) => b.setAttribute('aria-pressed', 'false'));
     $('#sample-blurb').textContent = '';
     lastResult = null;
+    ['a', 'b'].forEach((side) => {
+      provenance[side] = {};
+      pendingProposals[side] = [];
+      renderSourceChips(side);
+      const pr = $(`#${side}-proposals`); if (pr) pr.hidden = true;
+      setStatus(side, '');
+    });
     showEmptyStates();
   }
 
@@ -214,7 +475,10 @@
       return;
     }
 
-    lastResult = KYC.compare(a, b, { thresholds: readThresholds() });
+    lastResult = KYC.compare(a, b, {
+      thresholds: readThresholds(),
+      provenance: provenance,
+    });
 
     renderVerdict(lastResult);
     renderNote(lastResult);
@@ -520,6 +784,8 @@
   function init() {
     buildFields('a');
     buildFields('b');
+    buildCapturePanel('a');
+    buildCapturePanel('b');
     writeRecord('a', EMPTY_RECORD);
     writeRecord('b', EMPTY_RECORD);
     buildSampleButtons();

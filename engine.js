@@ -1068,6 +1068,48 @@ var KYC = (function () {
       null);
   }
 
+  /* ── Provenance ────────────────────────────────────────────────────────────
+   *
+   * Where each value came from. The engine does not score on this and never
+   * will — it is disclosure plus one hard stop.
+   *
+   * The distinction that matters: a value taken from a machine-readable zone
+   * whose check digits verify has been confirmed by arithmetic, and needs no
+   * second pair of eyes. A value read off the printed side of a document has
+   * nothing behind it at all, so until a human accepts it the outcome is capped.
+   * That is the four-eyes step every document-capture workflow has, expressed
+   * as a rule instead of as a habit.
+   */
+  function checkProvenance(prov, side) {
+    var out = [];
+    if (!prov) return out;
+
+    var unconfirmed = [], validated = [];
+    Object.keys(prov).forEach(function (k) {
+      if (prov[k] === 'ocr-unconfirmed') unconfirmed.push(k);
+      else if (prov[k] === 'mrz-validated') validated.push(k);
+    });
+
+    if (validated.length) {
+      out.push(field('Machine-read, validated (' + side + ')',
+        validated.join(', '), '', 'ok', validated.length + ' field(s)', ['OCR-2'],
+        'These were read from the machine-readable zone and its check digits verify, so ' +
+        'the transcription is confirmed by arithmetic. No separate confirmation is ' +
+        'required — the document proved its own reading.', null));
+    }
+
+    if (unconfirmed.length) {
+      out.push(field('Machine-read, unconfirmed (' + side + ')',
+        unconfirmed.join(', '), '', 'warn', unconfirmed.length + ' field(s)', ['OCR-1'],
+        'These were read off the printed side of the document, where nothing carries a ' +
+        'check digit and no arithmetic can confirm them, and no one has accepted them yet. ' +
+        'The outcome is capped until a human does. Machine-read text that nobody has looked ' +
+        'at is not evidence.', 'REFER'));
+    }
+
+    return out;
+  }
+
   function labelFor(v) {
     var map = {
       passport: 'Passport', national_id: 'National ID',
@@ -1093,6 +1135,9 @@ var KYC = (function () {
     // The evaluation date is an input, not a clock read, so a run can be
     // reproduced later and still give the same answer.
     var today = opts.today || new Date().toISOString().slice(0, 10);
+    // Where each field came from, if anything told us. Absent means everything
+    // was typed by a human, which is the default and needs no disclosure.
+    var provenance = opts.provenance || {};
 
     var name = compareNames(recA.fullName, recB.fullName);
 
@@ -1103,7 +1148,9 @@ var KYC = (function () {
       .concat(checkMrz(recA, 'A', today))
       .concat(checkMrz(recB, 'B', today))
       .concat(checkTypeAndCountry(recA, recB))
-      .concat([checkAddress(recA, recB)]);
+      .concat([checkAddress(recA, recB)])
+      .concat(checkProvenance(provenance.a, 'A'))
+      .concat(checkProvenance(provenance.b, 'B'));
 
     /* Name score sets the provisional verdict. */
     var provisional;
@@ -1128,6 +1175,7 @@ var KYC = (function () {
       thresholds: thresholds,
       recordA: recA,
       recordB: recB,
+      provenance: provenance,
       nameScore: name.score,
       name: name,
       checks: checks,
@@ -1199,6 +1247,14 @@ var KYC = (function () {
     L2.push(wrap(res.verdictReason));
     L2.push('');
 
+    var provLines = describeProvenance(res.provenance);
+    if (provLines.length) {
+      L2.push('HOW THE VALUES WERE OBTAINED');
+      L2.push('-'.repeat(60));
+      provLines.forEach(function (l) { L2.push(l); });
+      L2.push('');
+    }
+
     if (res.name.preprocessing.length) {
       L2.push('NAME PREPROCESSING');
       L2.push('-'.repeat(60));
@@ -1245,6 +1301,41 @@ var KYC = (function () {
     L2.push('Synthetic data — no real person or document is described here.');
 
     return L2.join('\n');
+  }
+
+  /* Whether a value was typed or machine-read is a material fact about a file,
+   * so it belongs in the note rather than only on screen. Silent when nothing
+   * was machine-read, which is the ordinary case. */
+  var PROV_LABEL = {
+    'mrz-validated': 'read from the machine-readable zone, check digits verified',
+    'ocr-unconfirmed': 'read from the printed page, NOT yet confirmed by a human',
+    'confirmed': 'read from the printed page, confirmed by the operator',
+  };
+
+  function describeProvenance(prov) {
+    if (!prov) return [];
+    var lines = [];
+    [['A', prov.a], ['B', prov.b]].forEach(function (pair) {
+      var side = pair[0], map = pair[1];
+      if (!map) return;
+      var groups = {};
+      Object.keys(map).forEach(function (f) {
+        if (!PROV_LABEL[map[f]]) return;   // typed values need no disclosure
+        (groups[map[f]] = groups[map[f]] || []).push(f);
+      });
+      Object.keys(groups).forEach(function (state) {
+        lines.push(wrap('Record ' + side + ' — ' + groups[state].join(', ') + ': ' +
+                        PROV_LABEL[state] + '.', '  '));
+      });
+    });
+    if (lines.length) {
+      lines.push('');
+      lines.push(wrap(
+        'Everything not listed above was typed by hand. The comparison itself is unchanged ' +
+        'either way: optical character recognition only proposes values into the form, and ' +
+        'the engine scores whatever a human left there.', '  '));
+    }
+    return lines;
   }
 
   function describeRecord(r) {

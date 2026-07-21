@@ -267,6 +267,26 @@ const RULES = {
       'of evidence is reported as such and never scored as agreement.',
   },
 
+  /* ── Provenance ───────────────────────────────────────────────────────── */
+
+  'OCR-1': {
+    name: 'Machine-read and unconfirmed',
+    description:
+      'A value was read off the printed side of a document by optical character ' +
+      'recognition, where nothing carries a check digit and no arithmetic can confirm it, ' +
+      'and no human has accepted it. The outcome is capped until one does. Optical ' +
+      'recognition proposes values into the form; it is never part of the decision, and ' +
+      'text nobody has looked at is not evidence.',
+  },
+  'OCR-2': {
+    name: 'Machine-read and validated',
+    description:
+      'A value was read from the machine-readable zone and its ICAO Doc 9303 check digits ' +
+      'verify, so the transcription is confirmed by arithmetic rather than by eye. The ' +
+      'machine-readable zone is the only part of a document able to prove its own reading, ' +
+      'which is why values from it need no separate confirmation.',
+  },
+
   /* ── Aggregation ──────────────────────────────────────────────────────── */
 
   'AGG-1': {

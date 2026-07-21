@@ -1,2 +1,12 @@
 # Store everything with LF so the repo is identical on Windows, macOS and Linux.
 * text=auto eol=lf
+
+# Third-party, committed unmodified. Marked so GitHub's language statistics and
+# diffs describe the actual work rather than a vendored OCR bundle.
+vendor/** linguist-vendored
+vendor/** -diff
+
+# Binary assets — never line-ending-normalised.
+*.wasm binary
+*.traineddata binary
+*.gz binary

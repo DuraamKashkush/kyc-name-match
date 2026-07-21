@@ -131,7 +131,9 @@
 <footer class="site-footer">
   <div class="wrap">
     <p>
-      Client-side only — no backend, no database, no network calls, no data retention.
+      Client-side only — no backend, no database, no data retention, and nothing you enter
+      ever leaves the page. Reading a document image loads its recogniser from this same
+      site, on demand; the image itself is never uploaded.
       Built from public sources: FATF guidance, ICAO Doc 9303, and published registry formats.
     </p>
     <p class="muted">
@@ -146,6 +148,7 @@
 <script src="rules.js"></script>
 <script src="engine.js"></script>
 <script src="cases.js"></script>
+<script src="ocr.js"></script>
 <script src="method.js"></script>
 <script src="app.js"></script>
 </body>

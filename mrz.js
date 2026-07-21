@@ -96,6 +96,72 @@ var MRZ = (function () {
     });
   }
 
+  /* ── Character-type layout ──────────────────────────────────────────────────
+   *
+   * Which positions in each line must be digits, which must be letters, and
+   * which may be either. Fixed by ICAO Doc 9303.
+   *
+   * This exists for the OCR corrector: knowing that positions 13–18 of a TD3
+   * second line are a date makes turning a misread O into a 0 deterministic
+   * rather than a guess. `parse()` deliberately still reads its own offsets —
+   * it is covered by tests and there is nothing to gain by rewriting it — so a
+   * test cross-checks this table against a known-good MRZ to catch any drift
+   * between the two.
+   *
+   * 'd' digit, 'a' letter or filler, 'x' either.
+   */
+  var LAYOUTS = {
+    TD3: {
+      lineLength: 44,
+      lines: [
+        [{ at: 0, len: 2, type: 'a' },    // document code
+         { at: 2, len: 3, type: 'a' },    // issuing state
+         { at: 5, len: 39, type: 'a' }],  // name field
+        [{ at: 0, len: 9, type: 'x' },    // document number
+         { at: 9, len: 1, type: 'd' },    // its check digit
+         { at: 10, len: 3, type: 'a' },   // nationality
+         { at: 13, len: 6, type: 'd' },   // date of birth
+         { at: 19, len: 1, type: 'd' },
+         { at: 20, len: 1, type: 'a' },   // sex
+         { at: 21, len: 6, type: 'd' },   // expiry
+         { at: 27, len: 1, type: 'd' },
+         { at: 28, len: 14, type: 'x' },  // optional data
+         { at: 42, len: 1, type: 'd' },
+         { at: 43, len: 1, type: 'd' }],  // composite
+      ],
+    },
+    TD1: {
+      lineLength: 30,
+      lines: [
+        [{ at: 0, len: 2, type: 'a' },
+         { at: 2, len: 3, type: 'a' },
+         { at: 5, len: 9, type: 'x' },
+         { at: 14, len: 1, type: 'd' },
+         { at: 15, len: 15, type: 'x' }],
+        [{ at: 0, len: 6, type: 'd' },
+         { at: 6, len: 1, type: 'd' },
+         { at: 7, len: 1, type: 'a' },
+         { at: 8, len: 6, type: 'd' },
+         { at: 14, len: 1, type: 'd' },
+         { at: 15, len: 3, type: 'a' },
+         { at: 18, len: 11, type: 'x' },
+         { at: 29, len: 1, type: 'd' }],
+        [{ at: 0, len: 30, type: 'a' }],
+      ],
+    },
+  };
+
+  /* The expected character type at one position, or 'x' if unconstrained. */
+  function charTypeAt(format, lineIndex, pos) {
+    var spec = LAYOUTS[format];
+    if (!spec || !spec.lines[lineIndex]) return 'x';
+    var runs = spec.lines[lineIndex];
+    for (var i = 0; i < runs.length; i++) {
+      if (pos >= runs[i].at && pos < runs[i].at + runs[i].len) return runs[i].type;
+    }
+    return 'x';
+  }
+
   function parse(text, todayYear) {
     todayYear = todayYear || 2026;
     var lines = cleanLines(text);
@@ -215,6 +281,9 @@ var MRZ = (function () {
     parseNameField: parseNameField,
     buildTD3: buildTD3,
     buildTD1: buildTD1,
+    LAYOUTS: LAYOUTS,
+    charTypeAt: charTypeAt,
+    cleanLines: cleanLines,
   };
 })();
 

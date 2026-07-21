@@ -55,8 +55,14 @@ MHMD       MHMD                             Mahmoud — two different names, not
 Note both skeletons read `MHMD`. They are genuinely identical — and the engine still refuses
 the match, and says why.
 
-A side effect of that design choice: no API key, no backend, no network call. Everything runs
-in the browser and nothing typed into the page leaves the tab.
+A side effect of that design choice: no API key, no backend, no model to call. Everything
+runs in the browser and nothing typed into the page leaves the tab.
+
+The one probabilistic component in the project sits deliberately outside that boundary. A
+document image can be read to *fill the form in*, but the reader takes no part in the
+decision — it proposes values, a human accepts them, and the engine scores what the human
+left behind. `engine.js` does not reference it and returns identical output whether or not it
+is loaded, which is asserted by a test.
 
 ## How it works
 
@@ -125,9 +131,42 @@ holds a pair back from a clean match when it conflicts, without failing it outri
 Names outside the table with colliding consonants *and* agreeing first vowels remain a real
 limitation. It is documented on the Method page rather than hidden.
 
-Also out of scope by design: no OCR, no document authentication, no sanctions or PEP
-screening, no persistence. Address comparison is deliberately shallow and can never decide an
-outcome on its own.
+Also out of scope by design: no document authentication, no sanctions or PEP screening, no
+persistence. Address comparison is deliberately shallow and can never decide an outcome on
+its own.
+
+## Reading a document image
+
+A photograph of a document can be read to fill the form in. Where that sits is the whole
+design:
+
+**It takes no part in the decision.** OCR proposes values; a person accepts them; the engine
+scores what the person left in the fields. `engine.js` does not reference the reader, does
+not know it exists, and returns identical output whether or not it is loaded — asserted by a
+test, and enforced structurally because the Node suite never loads it. A verdict here has to
+be reproducible, and a machine's best guess at some pixels cannot be allowed to move one.
+
+**The zone can prove its own reading.** The MRZ carries check digits, so a misread fails
+arithmetic and is reported rather than believed. That gives two tiers, treated differently:
+
+| source | validated by | treatment |
+|---|---|---|
+| zone, check digits verify | arithmetic | confirmed; no second pair of eyes needed |
+| zone, check digits fail | arithmetic | reported as misread-or-altered |
+| printed page | nothing | **capped at refer until a human accepts it** |
+
+**Misreads are corrected without guessing.** Every position in the zone has a fixed meaning,
+so a letter `O` sitting in the six positions that hold a date of birth is a misread `0` — not
+a judgement call. Corrections are reported, and the check digits then confirm whether they
+were right. A real alteration still fails, because changing one digit to another is not a
+character-class error and the corrector leaves it alone.
+
+Honest limits: there is no published Tesseract model for OCR-B, so this runs the general
+English model with the character set restricted to the zone's own alphabet, and an angled
+photo in poor light often will not read at all. The bundled specimen is a clean vector
+drawing — it demonstrates the pipeline, not the accuracy you would get in a branch. The
+specimen uses **UTO / Utopia**, the fictional state from ICAO Doc 9303 itself, so nothing in
+this repo resembles a real country's document. The image never leaves the browser.
 
 ## Tests
 
@@ -135,7 +174,7 @@ outcome on its own.
 node tests.js
 ```
 
-92 assertions, no framework, no dependencies. The same file runs in the browser at
+105 assertions, no framework, no test runner. The same file runs in the browser at
 [tests.html](https://duraamkashkush.github.io/kyc-name-match/tests.html).
 
 Roughly half of them exist to hold the engine **back**. An engine tuned to match aggressively
@@ -165,7 +204,9 @@ standard Arabic and Hebrew orthography.
 
 ## Running it locally
 
-No build step and no dependencies. Clone it and open `index.html`, or serve the directory:
+No build step. The matching engine has no dependencies at all; the optional document reader
+uses Tesseract, vendored under `vendor/` and loaded only if you actually click to read an
+image. Clone it and open `index.html`, or serve the directory:
 
 ```
 python -m http.server 8000
@@ -175,6 +216,8 @@ python -m http.server 8000
 |---|---|
 | `engine.js` | the matching engine — pure functions, no DOM |
 | `mrz.js` | ICAO Doc 9303 machine-readable zone parsing and check digits |
+| `ocr.js` | reads a document image to pre-fill the form — outside the decision path |
+| `vendor/` | Tesseract, third-party and unmodified, loaded only on demand |
 | `lexicon.js` | sound classes, particle tables, known names |
 | `rules.js` | the rule registry every score cites |
 | `app.js` | DOM wiring only |
