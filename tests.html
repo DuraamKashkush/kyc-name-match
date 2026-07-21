@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test suite — Arabic name matching for KYC</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <h1>Test suite</h1>
+    <p class="tagline">
+      Assertions against <code>engine.js</code>, running in this page. No framework and no
+      build step — the same file runs under <code>node tests.js</code>.
+    </p>
+    <p class="notice" role="note">
+      Roughly half of these exist to hold the engine <em>back</em>. An engine tuned to match
+      aggressively across transliterations will happily match two different people, and in a
+      verification queue that failure is more serious than the false mismatch the tool was
+      built to fix.
+    </p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="summary" class="test-summary">Running…</div>
+  <table class="tests"><tbody id="results"></tbody></table>
+  <p class="muted" style="margin-top:18px"><a href="index.html">← Back to the tool</a></p>
+</main>
+
+<script src="lexicon.js"></script>
+<script src="rules.js"></script>
+<script src="engine.js"></script>
+<script src="cases.js"></script>
+<script src="tests.js"></script>
+<script>
+(function () {
+  var out = TEST_SUITE.run();
+
+  var summary = document.getElementById('summary');
+  summary.className = 'test-summary ' + (out.failed ? 'fail' : 'pass');
+  summary.textContent = out.failed
+    ? out.failed + ' FAILED — ' + out.passed + ' passed of ' + out.total
+    : 'All ' + out.passed + ' assertions passed — engine ' + KYC.VERSION;
+
+  var body = document.getElementById('results');
+  out.results.forEach(function (r) {
+    var tr = document.createElement('tr');
+    if (r.type === 'group') {
+      tr.className = 'test-group';
+      var td = document.createElement('td');
+      td.colSpan = 3;
+      td.textContent = r.name;
+      tr.appendChild(td);
+    } else {
+      var res = document.createElement('td');
+      res.className = 'res ' + (r.ok ? 'ok' : 'no');
+      res.textContent = r.ok ? 'pass' : 'FAIL';
+      tr.appendChild(res);
+
+      var name = document.createElement('td');
+      name.textContent = r.name;
+      tr.appendChild(name);
+
+      var detail = document.createElement('td');
+      detail.className = 'detail';
+      detail.textContent = r.detail || '';
+      tr.appendChild(detail);
+    }
+    body.appendChild(tr);
+  });
+})();
+</script>
+</body>
+</html>

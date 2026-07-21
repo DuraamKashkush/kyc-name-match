@@ -1,0 +1,555 @@
+/*
+ * tests.js — assertions against engine.js.
+ *
+ * No framework and no build step: this file runs in the browser via tests.html
+ * and in Node via `node tests.js`. The whole claim of this project is that the
+ * decision is deterministic and reproducible, and an untested engine has no
+ * business making that claim.
+ *
+ * The adversarial cases matter more than the happy ones. An engine tuned to
+ * match aggressively across transliterations will happily match two DIFFERENT
+ * people, and that failure is far more serious in a KYC queue than the false
+ * mismatch this tool was built to fix. Roughly half the assertions below exist
+ * to hold the engine back.
+ */
+
+var TEST_SUITE = (function () {
+  'use strict';
+
+  var K = (typeof module !== 'undefined' && module.exports)
+    ? require('./engine.js') : KYC;
+
+  var groups = [];
+  var current = null;
+
+  function group(name) { current = { name: name, tests: [] }; groups.push(current); }
+  function test(name, fn) { current.tests.push({ name: name, fn: fn }); }
+
+  function fail(msg) { throw new Error(msg); }
+  function eq(actual, expected, what) {
+    if (actual !== expected) {
+      fail((what || 'value') + ': expected ' + JSON.stringify(expected) +
+           ', got ' + JSON.stringify(actual));
+    }
+  }
+  function ok(cond, msg) { if (!cond) fail(msg || 'expected truthy'); }
+  function gte(actual, bound, what) {
+    if (!(actual >= bound)) fail((what || 'value') + ': expected >= ' + bound + ', got ' + actual);
+  }
+  function lte(actual, bound, what) {
+    if (!(actual <= bound)) fail((what || 'value') + ': expected <= ' + bound + ', got ' + actual);
+  }
+  function hasRule(rules, id) {
+    ok(rules.indexOf(id) >= 0, 'expected rule ' + id + ', got [' + rules.join(', ') + ']');
+  }
+
+  /* Helpers for building throwaway records. */
+  var TODAY = '2026-07-21';
+  function rec(over) {
+    var base = {
+      fullName: '', dob: '1994-03-07', docType: 'passport', docNumber: 'M1234567',
+      expiry: '2029-08-22', country: 'JO', address: 'Amman, Jordan',
+    };
+    Object.keys(over || {}).forEach(function (k) { base[k] = over[k]; });
+    return base;
+  }
+  function cmp(nameA, nameB) { return K.compareNames(nameA, nameB); }
+  function tok(a, b) { return K.compareTokens(a, b); }
+  function tokens(name) { return K.preprocessTokens(K.tokenize(name)).tokens; }
+  function findings(name) {
+    return K.preprocessTokens(K.tokenize(name)).findings
+      .reduce(function (acc, f) { return acc.concat(f.rules); }, []);
+  }
+
+  /* ── Script detection ─────────────────────────────────────────────────── */
+
+  group('Script detection');
+
+  test('Arabic is detected', function () { eq(K.detectScript('محمد'), 'arabic'); });
+  test('Hebrew is detected', function () { eq(K.detectScript('מוחמד'), 'hebrew'); });
+  test('Latin is detected', function () { eq(K.detectScript('Mohammad'), 'latin'); });
+
+  /* ── Skeleton convergence ─────────────────────────────────────────────── */
+
+  group('Consonant skeleton — the three scripts must converge');
+
+  test('محمد, מוחמד and Mohammad all reduce to MHMD', function () {
+    eq(K.skeleton('محمد'), 'MHMD', 'arabic');
+    eq(K.skeleton('מוחמד'), 'MHMD', 'hebrew');
+    eq(K.skeleton('Mohammad'), 'MHMD', 'latin');
+  });
+  test('Every common spelling of Muhammad reduces alike', function () {
+    ['Mohammad', 'Mohamed', 'Muhammad', 'Muhammed', 'Mohammed', 'Mohamad']
+      .forEach(function (s) { eq(K.skeleton(s), 'MHMD', s); });
+  });
+  test('سيد and Sayed both reduce to SD', function () {
+    eq(K.skeleton('سيد'), 'SD', 'arabic');
+    eq(K.skeleton('Sayed'), 'SD', 'latin');
+  });
+  test('Word-initial y and w are consonants and survive', function () {
+    eq(K.skeleton('يوسف'), 'YSF', 'arabic yousef');
+    eq(K.skeleton('Yousef'), 'YSF', 'latin yousef');
+    eq(K.skeleton('وليد'), 'WLD', 'arabic walid');
+    eq(K.skeleton('Walid'), 'WLD', 'latin walid');
+  });
+  test('A word-initial vowel drops — Ibrahim is not Y-Ibrahim', function () {
+    eq(K.skeleton('إبراهيم'), 'BRHM', 'arabic');
+    eq(K.skeleton('Ibrahim'), 'BRHM', 'latin i-');
+    eq(K.skeleton('Ebrahim'), 'BRHM', 'latin e-');
+  });
+  test('Ta marbuta is silent — فاطمة is Fatima, not Fatimat', function () {
+    eq(K.skeleton('فاطمة'), 'FTM', 'arabic');
+    eq(K.skeleton('Fatima'), 'FTM', 'latin');
+  });
+  test('Alef maqsura is a vowel — مصطفى is Mustafa', function () {
+    eq(K.skeleton('مصطفى'), 'MSTF', 'arabic');
+    eq(K.skeleton('Mustafa'), 'MSTF', 'latin');
+  });
+  test('ع vanishes in transliteration — عمر is Omar', function () {
+    eq(K.skeleton('عمر'), 'MR', 'arabic');
+    eq(K.skeleton('Omar'), 'MR', 'latin o-');
+    eq(K.skeleton('Umar'), 'MR', 'latin u-');
+  });
+  test('Equivalence classes collapse as specified', function () {
+    eq(K.skeleton('خالد'), K.skeleton('Khaled'), 'kh class');
+    eq(K.skeleton('طارق'), K.skeleton('Tariq'), 'emphatic t, q');
+    eq(K.skeleton('جمال'), K.skeleton('Gamal'), 'egyptian g for jim');
+    eq(K.skeleton('ناصر'), K.skeleton('Nasser'), 'sad class');
+  });
+
+  /* ── Skeleton distinctness ────────────────────────────────────────────── */
+
+  group('Consonant skeleton — genuinely different names must stay apart');
+
+  test('Sayed and Sharif do not converge', function () {
+    ok(K.skeleton('سيد') !== K.skeleton('شريف'), 'skeletons collided');
+  });
+  test('Walid and Khalid do not converge', function () {
+    ok(K.skeleton('Walid') !== K.skeleton('Khalid'), 'skeletons collided');
+  });
+  test('Yaser and Nasser do not converge', function () {
+    ok(K.skeleton('Yaser') !== K.skeleton('Nasser'), 'skeletons collided');
+  });
+  test('Mohammad and Mahmoud DO converge — which is why the lexicon exists', function () {
+    eq(K.skeleton('Mohammad'), K.skeleton('Mahmoud'),
+       'if these ever stop colliding, the LEX-2 rule is no longer load-bearing');
+  });
+
+  /* ── Known-name lexicon ───────────────────────────────────────────────── */
+
+  group('Known-name lexicon');
+
+  test('Mohammad and Mahmoud are refused despite identical consonants', function () {
+    var r = tok('Mohammad', 'Mahmoud');
+    eq(r.score, 0, 'score');
+    hasRule(r.rules, 'LEX-2');
+  });
+  test('Spelling variants of one name are matched outright', function () {
+    ['Mohamed', 'Muhammed', 'Mohammed', 'محمد', 'מוחמד'].forEach(function (s) {
+      var r = tok('Mohammad', s);
+      eq(r.score, 1, 'Mohammad vs ' + s);
+      hasRule(r.rules, 'LEX-1');
+    });
+  });
+  test('Jamal and Gamal are one name', function () {
+    var r = tok('Jamal', 'Gamal');
+    eq(r.score, 1);
+    hasRule(r.rules, 'LEX-1');
+  });
+  test('Hassan and Hussein are two names', function () {
+    eq(tok('Hassan', 'Hussein').score, 0);
+  });
+  test('Khaled and Khalil are two names', function () {
+    eq(tok('Khaled', 'Khalil').score, 0);
+  });
+  test('Ali and Alaa are two names', function () {
+    eq(tok('Ali', 'Alaa').score, 0);
+  });
+  test('Cross-script lexicon hits work', function () {
+    eq(tok('أحمد', 'Ahmed').score, 1, 'arabic vs latin');
+    eq(tok('אחמד', 'Ahmad').score, 1, 'hebrew vs latin');
+    eq(tok('محمد', 'מוחמד').score, 1, 'arabic vs hebrew');
+  });
+
+  /* ── Skeleton matching for names outside the lexicon ──────────────────── */
+
+  group('Skeleton matching outside the lexicon');
+
+  test('Sayed matches Sayyid on the skeleton', function () {
+    var r = tok('Sayed', 'Sayyid');
+    gte(r.score, 0.9, 'score');
+  });
+  test('Sharif matches Shareef on the skeleton', function () {
+    gte(tok('Sharif', 'Shareef').score, 0.9, 'score');
+  });
+  test('Arabic surname matches its Latin transliteration', function () {
+    var r = tok('سيد', 'Sayed');
+    eq(r.score, 1, 'score');
+    hasRule(r.rules, 'SKEL-1');
+    hasRule(r.rules, 'WEAK-1');
+  });
+  test('Unrelated surnames score low', function () {
+    lte(tok('Sayed', 'Sharif').score, 0.4, 'score');
+    lte(tok('Haddad', 'Mansour').score, 0.4, 'score');
+  });
+  test('First-vowel conflict holds a pair back from a clean match', function () {
+    var r = tok('Salem', 'Islam');
+    ok(r.score < 0.85, 'expected to be held back, got ' + r.score);
+    hasRule(r.rules, 'VOW-1');
+  });
+
+  /* ── Particles ────────────────────────────────────────────────────────── */
+
+  group('Particles');
+
+  test('The definite article is stripped and reported', function () {
+    eq(tokens('Al-Sayed').join(' '), 'sayed');
+    hasRule(findings('Al-Sayed'), 'ART-1');
+  });
+  test('Arabic ال and Hebrew אל are stripped', function () {
+    eq(tokens('السيد').join(' '), 'سيد', 'arabic');
+    eq(tokens('אלסייד').join(' '), 'סייד', 'hebrew');
+  });
+  test('A sun-letter article is recognised', function () {
+    eq(tokens('Ash-Sharif').join(' '), 'sharif', 'hyphenated');
+    hasRule(findings('Ash-Sharif'), 'ART-2');
+  });
+  test('An assimilated article with no hyphen is recognised', function () {
+    eq(tokens('Mohammad Assayed').join(' '), 'mohammad sayed');
+    hasRule(findings('Mohammad Assayed'), 'ART-2');
+  });
+  test('Elsayed and Al-Sayed reach the same token', function () {
+    eq(tokens('Mohammad Elsayed')[1], tokens('Mohammad Al-Sayed')[1]);
+  });
+  test('Ali is NOT reduced to "i" by the article stripper', function () {
+    eq(tokens('Ali').join(' '), 'ali');
+    eq(tokens('Mohammad Ali').join(' '), 'mohammad ali');
+  });
+  test('عبد is joined to what follows, never stripped', function () {
+    eq(tokens('عبد الرحمن').join(' '), 'عبدالرحمن');
+    hasRule(findings('عبد الرحمن'), 'JOIN-1');
+  });
+  test('Abdul Rahman, Abd al-Rahman and Abdulrahman are one name', function () {
+    var forms = ['Abdul Rahman', 'Abd al-Rahman', 'Abdulrahman', 'Abdel Rahman'];
+    forms.forEach(function (f) {
+      var r = tok(tokens(f)[0], 'Abdulrahman');
+      eq(r.score, 1, f + ' vs Abdulrahman');
+    });
+  });
+  test('Abdullah survives as one token and is not read as an article', function () {
+    eq(tokens('عبد الله').join(' '), 'عبدالله');
+    eq(tok(tokens('Abd Allah')[0], 'Abdullah').score, 1);
+  });
+  test('Abu is kept as part of the family name', function () {
+    eq(tokens('Abu Sayed').join(' '), 'abusayed');
+    hasRule(findings('Abu Sayed'), 'JOIN-1');
+  });
+  test('bin and ibn are removed and reported', function () {
+    eq(tokens('Mohammad bin Ahmad').join(' '), 'mohammad ahmad');
+    hasRule(findings('Mohammad bin Ahmad'), 'PAT-1');
+    eq(tokens('Mohammad ibn Ahmad').join(' '), 'mohammad ahmad');
+  });
+
+  /* ── Full-name comparison ─────────────────────────────────────────────── */
+
+  group('Full-name comparison');
+
+  test('Arabic document against Latin system record — the headline case', function () {
+    var r = cmp('محمد أحمد السيد', 'Muhammed Elsayed');
+    gte(r.score, 85, 'name score');
+  });
+  test('Hebrew record against Latin record', function () {
+    gte(cmp('מוחמד אחמד אלסייד', 'Mohammad Ahmad Al-Sayed').score, 85, 'name score');
+  });
+  test('All four spellings of one person agree with each other', function () {
+    var forms = ['محمد السيد', 'מוחמד אלסייד', 'Mohammad Al-Sayed', 'Muhammed Elsayed'];
+    for (var i = 0; i < forms.length; i++) {
+      for (var j = i + 1; j < forms.length; j++) {
+        gte(cmp(forms[i], forms[j]).score, 85, forms[i] + ' vs ' + forms[j]);
+      }
+    }
+  });
+  test('Reordered tokens still match, and the reordering is recorded', function () {
+    var r = cmp('Mohammad Ali', 'Ali Mohammad');
+    gte(r.score, 85, 'name score');
+    var all = r.pairs.reduce(function (a, p) { return a.concat(p.rules); }, []);
+    hasRule(all, 'ORD-1');
+  });
+  test('A patronymic present in one record only is benign', function () {
+    var r = cmp('Mohammad Ahmad Al-Sayed', 'Mohammad Al-Sayed');
+    gte(r.score, 90, 'name score');
+    var all = r.pairs.reduce(function (a, p) { return a.concat(p.rules); }, []);
+    hasRule(all, 'TOK-1');
+  });
+  test('A different family name is substantive', function () {
+    lte(cmp('Mohammad Al-Sayed', 'Mohammad Al-Sharif').score, 65, 'name score');
+  });
+  test('A different given name is substantive', function () {
+    lte(cmp('Mohammad Al-Sayed', 'Mahmoud Al-Sayed').score, 65, 'name score');
+  });
+  test('The Mohammad/Mahmoud finding is SHOWN, not silently dropped', function () {
+    var r = cmp('Mohammad Ahmad Al-Sayed', 'Mahmoud Ahmad Al-Sharif');
+    var row = r.pairs.filter(function (p) {
+      return p.a === 'mohammad' && p.b === 'mahmoud';
+    })[0];
+    ok(row, 'the contradicting pair must appear as a row in the breakdown');
+    hasRule(row.rules, 'LEX-2');
+  });
+  test('A missing name is reported, never scored as agreement', function () {
+    var r = cmp('', 'Mohammad Al-Sayed');
+    eq(r.score, 0, 'name score');
+    hasRule(r.pairs[0].rules, 'MISS-1');
+  });
+
+  /* ── Dates ────────────────────────────────────────────────────────────── */
+
+  group('Date of birth');
+
+  function dobCheck(a, b) {
+    var res = K.compare(rec({ fullName: 'Mohammad Al-Sayed', dob: a }),
+                        rec({ fullName: 'Mohammad Al-Sayed', dob: b }), { today: TODAY });
+    return res.checks.filter(function (c) { return c.field === 'Date of birth'; })[0];
+  }
+
+  test('Identical dates agree', function () {
+    hasRule(dobCheck('1994-03-07', '1994-03-07').rules, 'DOB-1');
+  });
+  test('Day/month transposition is identified as a keying error', function () {
+    var c = dobCheck('1994-03-07', '1994-07-03');
+    hasRule(c.rules, 'DOB-SWAP');
+    eq(c.cap, 'REFER', 'caps at refer, not no-match');
+  });
+  test('Same year with a non-transposed difference is not a swap', function () {
+    hasRule(dobCheck('1994-03-07', '1994-09-15').rules, 'DOB-2');
+  });
+  test('A first-of-January date is flagged as a placeholder', function () {
+    hasRule(dobCheck('1994-01-01', '1994-01-01').rules, 'DOB-4');
+  });
+  test('Unrelated dates differ', function () {
+    hasRule(dobCheck('1994-03-07', '1991-11-22').rules, 'DOB-3');
+  });
+  test('A transposition needs day and month to actually differ', function () {
+    // 05-05 against 05-05 is identical, not a transposition.
+    hasRule(dobCheck('1994-05-05', '1994-05-05').rules, 'DOB-1');
+  });
+
+  /* ── Documents ────────────────────────────────────────────────────────── */
+
+  group('Document checks');
+
+  test('A valid Israeli ID check digit verifies', function () {
+    eq(K.israeliIdValid('310256789'), true, '310256789');
+    eq(K.israeliIdValid('284190352'), true, '284190352');
+  });
+  test('A corrupted Israeli ID check digit fails', function () {
+    eq(K.israeliIdValid('310256788'), false, 'last digit changed');
+    eq(K.israeliIdValid('310256779'), false, 'inner digit changed');
+  });
+  test('A wrong-length Israeli ID is not evaluated rather than failed', function () {
+    eq(K.israeliIdValid('12345'), null);
+  });
+  test('An expired document caps the verdict regardless of the name', function () {
+    var res = K.compare(
+      rec({ fullName: 'Mohammad Al-Sayed', expiry: '2024-02-10' }),
+      rec({ fullName: 'Mohammad Al-Sayed', expiry: '2024-02-10' }),
+      { today: TODAY });
+    eq(res.nameScore, 100, 'names are identical');
+    eq(res.provisionalVerdict, 'MATCH', 'provisional');
+    eq(res.verdict, 'REFER', 'capped');
+    ok(res.hardStops.some(function (h) { return h.rule === 'EXP-1'; }), 'EXP-1 must cap');
+  });
+  test('Checks can only lower a verdict, never raise it', function () {
+    var res = K.compare(
+      rec({ fullName: 'Mohammad Al-Sayed' }),
+      rec({ fullName: 'Mahmoud Al-Sharif' }),
+      { today: TODAY });
+    eq(res.provisionalVerdict, 'NO_MATCH', 'provisional');
+    // Every field agrees here, which must NOT rescue the name mismatch.
+    eq(res.verdict, 'NO_MATCH', 'agreeing fields cannot raise the verdict');
+  });
+
+  /* ── Address ──────────────────────────────────────────────────────────── */
+
+  group('Address');
+
+  test('One town written three ways is recognised as one town', function () {
+    var res = K.compare(
+      rec({ fullName: 'Mohammad Al-Sayed', address: 'אום אל-פחם' }),
+      rec({ fullName: 'Mohammad Al-Sayed', address: 'Umm al-Fahm' }),
+      { today: TODAY });
+    var c = res.checks.filter(function (x) { return x.field === 'Address'; })[0];
+    eq(c.status, 'ok', 'localities should agree: ' + c.statusLabel);
+  });
+  test('The address can never decide an outcome on its own', function () {
+    var res = K.compare(
+      rec({ fullName: 'Mohammad Al-Sayed', address: 'Haifa' }),
+      rec({ fullName: 'Mohammad Al-Sayed', address: 'Berlin' }),
+      { today: TODAY });
+    eq(res.verdict, 'MATCH', 'a differing address must not cap the verdict');
+  });
+
+  /* ── End to end ───────────────────────────────────────────────────────── */
+
+  group('The four sample cases end to end');
+
+  function sample(key) {
+    var C = (typeof module !== 'undefined' && module.exports)
+      ? loadCasesInNode() : SAMPLE_CASES;
+    return K.compare(C[key].a, C[key].b, { today: TODAY });
+  }
+  function loadCasesInNode() {
+    var fs = require('fs'), p = require('path');
+    var src = fs.readFileSync(p.join(__dirname, 'cases.js'), 'utf8');
+    var box = {};
+    new Function('g', src + '\ng.SAMPLE_CASES = SAMPLE_CASES;')(box);
+    return box.SAMPLE_CASES;
+  }
+
+  test('Clean match returns MATCH', function () {
+    var r = sample('clean');
+    eq(r.verdict, 'MATCH');
+    eq(r.nameScore, 100, 'name score');
+  });
+  test('Transliteration mismatch returns MATCH — the headline result', function () {
+    var r = sample('translit');
+    eq(r.verdict, 'MATCH');
+    gte(r.nameScore, 85, 'name score');
+  });
+  test('Naive comparison scores that same pair near zero', function () {
+    // The contrast this project exists to demonstrate: identical inputs, one
+    // naive string comparison, one engine.
+    var C = (typeof module !== 'undefined' && module.exports)
+      ? loadCasesInNode() : SAMPLE_CASES;
+    eq(C.translit.a.fullName === C.translit.b.fullName, false,
+       'raw strings must not be equal, or the case proves nothing');
+    ok(sample('translit').nameScore >= 85, 'but the engine matches them');
+  });
+  test('Day/month swap returns REFER and names the rule', function () {
+    var r = sample('dobswap');
+    eq(r.verdict, 'REFER');
+    ok(r.hardStops.some(function (h) { return h.rule === 'DOB-SWAP'; }), 'DOB-SWAP must cap');
+  });
+  test('Different person returns NO MATCH', function () {
+    var r = sample('different');
+    eq(r.verdict, 'NO_MATCH');
+    lte(r.nameScore, 60, 'name score');
+  });
+
+  /* ── Reproducibility ──────────────────────────────────────────────────── */
+
+  group('Reproducibility');
+
+  test('The same inputs produce a byte-identical case note', function () {
+    var a = rec({ fullName: 'محمد أحمد السيد' });
+    var b = rec({ fullName: 'Muhammed Elsayed' });
+    var n1 = K.caseNote(K.compare(a, b, { today: TODAY }));
+    var n2 = K.caseNote(K.compare(a, b, { today: TODAY }));
+    eq(n1, n2, 'case notes diverged between two runs');
+    ok(n1.length > 400, 'the note should actually contain the finding');
+  });
+  test('Every score in a breakdown cites at least one rule', function () {
+    var r = K.compare(rec({ fullName: 'محمد أحمد السيد' }),
+                      rec({ fullName: 'Mahmoud Al-Sharif' }), { today: TODAY });
+    r.name.pairs.forEach(function (p) {
+      ok(p.rules && p.rules.length, 'a name row carried no rule id: ' + JSON.stringify(p));
+    });
+    r.checks.forEach(function (c) {
+      ok(c.rules && c.rules.length, 'a check row carried no rule id: ' + c.field);
+    });
+  });
+  test('Every rule cited by the engine exists in the registry', function () {
+    var REG = (typeof module !== 'undefined' && module.exports)
+      ? require('./rules.js').RULES : RULES;
+    var seen = {};
+    [['محمد أحمد السيد', 'Muhammed Elsayed'],
+     ['Mohammad Al-Sayed', 'Mahmoud Al-Sharif'],
+     ['מוחמד אלסייד', 'Mohammad Al-Sayed'],
+     ['Abd al-Rahman bin Ahmad', 'Abdulrahman Ahmad']].forEach(function (pair) {
+      var r = K.compare(rec({ fullName: pair[0], dob: '1994-03-07' }),
+                        rec({ fullName: pair[1], dob: '1994-07-03' }), { today: TODAY });
+      r.name.pairs.concat(r.checks).forEach(function (row) {
+        row.rules.forEach(function (id) { seen[id] = true; });
+      });
+      r.name.preprocessing.forEach(function (f) {
+        f.rules.forEach(function (id) { seen[id] = true; });
+      });
+    });
+    Object.keys(seen).forEach(function (id) {
+      ok(REG[id], 'rule ' + id + ' is cited by the engine but missing from rules.js');
+    });
+    ok(Object.keys(seen).length >= 10, 'expected the sweep to exercise many rules');
+  });
+  test('The Method page sound classes match what the engine actually does', function () {
+    // This drifted once during development: ة was moved from the T class to the
+    // vowel class in the map, and the published table still listed it under T.
+    // The whole auditability claim rests on the documentation being generated
+    // from the data the engine runs on, so it gets a test.
+    var LX = (typeof module !== 'undefined' && module.exports)
+      ? require('./lexicon.js')
+      : { EQUIVALENCE_DISPLAY: EQUIVALENCE_DISPLAY, ARABIC_MAP: ARABIC_MAP,
+          HEBREW_MAP: HEBREW_MAP };
+
+    var arabic = /[؀-ۿ]/;
+    var hebrew = /[֐-׿]/;
+
+    LX.EQUIVALENCE_DISPLAY.forEach(function (entry) {
+      entry.members.split('·').forEach(function (segment) {
+        segment.trim().split(/[\s,]+/).filter(Boolean).forEach(function (item) {
+          if (item.length !== 1) return;          // digraphs and prose, skip
+          if (arabic.test(item)) {
+            eq(LX.ARABIC_MAP[item], entry.cls,
+               'Method page lists ' + item + ' under class ' + entry.cls);
+          } else if (hebrew.test(item)) {
+            eq(LX.HEBREW_MAP[item], entry.cls,
+               'Method page lists ' + item + ' under class ' + entry.cls);
+          }
+        });
+      });
+    });
+  });
+  test('Thresholds change the verdict and are carried into the result', function () {
+    var a = rec({ fullName: 'Mohammad Al-Sayed' });
+    var b = rec({ fullName: 'Mohammad Al-Sharif' });
+    var strict = K.compare(a, b, { today: TODAY, thresholds: { match: 95, refer: 90 } });
+    var loose  = K.compare(a, b, { today: TODAY, thresholds: { match: 40, refer: 30 } });
+    eq(strict.thresholds.match, 95, 'thresholds recorded');
+    ok(K.caseNote(strict).indexOf('95') >= 0, 'the note must record the threshold used');
+    ok(loose.verdict !== strict.verdict, 'thresholds must actually move the verdict');
+  });
+
+  /* ── Runner ───────────────────────────────────────────────────────────── */
+
+  function run() {
+    var results = [], passed = 0, failed = 0;
+    groups.forEach(function (g) {
+      results.push({ type: 'group', name: g.name });
+      g.tests.forEach(function (t) {
+        try {
+          t.fn();
+          passed++;
+          results.push({ type: 'test', name: t.name, ok: true });
+        } catch (e) {
+          failed++;
+          results.push({ type: 'test', name: t.name, ok: false, detail: e.message });
+        }
+      });
+    });
+    return { passed: passed, failed: failed, total: passed + failed, results: results };
+  }
+
+  return { run: run, groups: groups };
+})();
+
+/* Running `node tests.js` prints a report and sets a non-zero exit code on
+ * failure, so it works in a terminal as well as in the browser. */
+if (typeof module !== 'undefined' && module.exports && require.main === module) {
+  var out = TEST_SUITE.run();
+  out.results.forEach(function (r) {
+    if (r.type === 'group') console.log('\n── ' + r.name);
+    else if (r.ok) console.log('   ok   ' + r.name);
+    else console.log('   FAIL ' + r.name + '\n          ' + r.detail);
+  });
+  console.log('\n' + out.passed + ' passed, ' + out.failed + ' failed, ' +
+              out.total + ' total');
+  process.exit(out.failed ? 1 : 0);
+}
