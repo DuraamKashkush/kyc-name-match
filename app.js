@@ -160,9 +160,8 @@
         '</label>' +
         `<button type="button" class="link-btn" data-specimen="${side}">Try the specimen</button>` +
       '</div>' +
-      `<p class="field-hint capture-note">Runs entirely in your browser — the image is never ` +
-        `uploaded. Optical recognition only fills the form in; it takes no part in the ` +
-        `decision, and anything it reads off the printed page has to be confirmed by you.</p>` +
+      `<p class="field-hint capture-note">Read here in your browser; the image is never ` +
+        `uploaded. Filling the form only — the reader takes no part in the decision.</p>` +
       `<div class="capture-status" id="${side}-ocr-status" role="status"></div>` +
       `<div class="proposals" id="${side}-proposals" hidden></div>`;
 
@@ -247,7 +246,7 @@
     head.innerHTML = '<strong>Read from the document</strong>';
     const acceptAll = document.createElement('button');
     acceptAll.type = 'button';
-    acceptAll.className = 'secondary small';
+    acceptAll.className = 'btn btn-small';
     acceptAll.textContent = 'Confirm all';
     acceptAll.addEventListener('click', () => {
       res.proposals.forEach((p) => confirmProposal(side, p));
@@ -285,7 +284,7 @@
 
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'secondary small';
+      btn.className = 'btn btn-small';
       // Validated values need no confirmation; unvalidated ones are already in
       // the form but do not count until someone accepts them.
       // No provenance at all means the operator has since edited the field by
@@ -395,6 +394,7 @@
     $$('.sample-btn').forEach((b) => b.setAttribute('aria-pressed', 'false'));
     $('#sample-blurb').textContent = '';
     lastResult = null;
+    $('#verdict').hidden = true;
     ['a', 'b'].forEach((side) => {
       provenance[side] = {};
       pendingProposals[side] = [];
@@ -402,26 +402,92 @@
       const pr = $(`#${side}-proposals`); if (pr) pr.hidden = true;
       setStatus(side, '');
     });
-    showEmptyStates();
   }
 
-  /* ── Tabs ────────────────────────────────────────────────────────────── */
+  /* ── Modals ──────────────────────────────────────────────────────────── */
 
-  function showTab(name) {
-    $$('.tab').forEach((t) => {
-      t.setAttribute('aria-selected', String(t.dataset.tab === name));
-    });
-    $$('.panel').forEach((p) => {
-      p.hidden = p.dataset.panel !== name;
-    });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  function openModal(id) {
+    const d = document.getElementById(id);
+    if (d && typeof d.showModal === 'function') d.showModal();
   }
 
-  function showEmptyStates() {
-    $('#verdict-empty').hidden = false;
-    $('#verdict-body').hidden = true;
-    $('#note-empty').hidden = false;
-    $('#note-body').hidden = true;
+  function wireModals() {
+    $$('[data-open]').forEach((b) =>
+      b.addEventListener('click', () => openModal(b.dataset.open)));
+    $$('dialog').forEach((d) => {
+      d.querySelectorAll('[data-close]').forEach((b) =>
+        b.addEventListener('click', () => d.close()));
+      // Clicking the backdrop closes it. The dialog element reports clicks on
+      // the backdrop as clicks on itself, so compare against the target.
+      d.addEventListener('click', (e) => { if (e.target === d) d.close(); });
+    });
+  }
+
+  /* ── Rule popover ────────────────────────────────────────────────────────
+   *
+   * Every score in this tool cites a rule, and that claim is only worth
+   * anything if the reader can actually find out what the rule says. Press any
+   * id and it tells you, anchored where you pressed rather than buried in a
+   * native tooltip nobody discovers.
+   */
+
+  let popAnchor = null;
+
+  function hideRulePop() {
+    const pop = $('#rule-pop');
+    pop.hidden = true;
+    if (popAnchor) popAnchor.setAttribute('aria-expanded', 'false');
+    popAnchor = null;
+  }
+
+  function showRulePop(anchor, id) {
+    const rule = RULES[id];
+    if (!rule) return;
+    const pop = $('#rule-pop');
+
+    pop.innerHTML = '';
+    const idEl = document.createElement('span');
+    idEl.className = 'pop-id';
+    idEl.textContent = id;
+    const nameEl = document.createElement('span');
+    nameEl.className = 'pop-name';
+    nameEl.textContent = rule.name;
+    const descEl = document.createElement('span');
+    descEl.className = 'pop-desc';
+    descEl.textContent = rule.description;
+    pop.append(idEl, nameEl, descEl);
+
+    pop.hidden = false;
+    const r = anchor.getBoundingClientRect();
+    const w = pop.offsetWidth;
+    // Keep it on screen: prefer left-aligned to the id, shift in if it would
+    // overflow, and point the arrow back at whatever was pressed.
+    let left = r.left + window.scrollX;
+    const maxLeft = window.scrollX + document.documentElement.clientWidth - w - 12;
+    if (left > maxLeft) left = Math.max(window.scrollX + 12, maxLeft);
+    pop.style.left = left + 'px';
+    pop.style.top = (r.bottom + window.scrollY + 8) + 'px';
+    pop.style.setProperty('--arrow',
+      Math.max(10, Math.min(w - 18, r.left + window.scrollX - left + 8)) + 'px');
+
+    anchor.setAttribute('aria-expanded', 'true');
+    popAnchor = anchor;
+  }
+
+  function wireRulePop() {
+    document.addEventListener('click', (e) => {
+      const chip = e.target.closest ? e.target.closest('.rule-id') : null;
+      if (chip) {
+        if (popAnchor === chip) { hideRulePop(); return; }
+        hideRulePop();
+        showRulePop(chip, chip.dataset.rule);
+        return;
+      }
+      if (!e.target.closest || !e.target.closest('#rule-pop')) hideRulePop();
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideRulePop(); });
+    window.addEventListener('resize', hideRulePop);
+    window.addEventListener('scroll', hideRulePop, { passive: true });
   }
 
   /* ── Thresholds ──────────────────────────────────────────────────────── */
@@ -471,7 +537,7 @@
 
     renderVerdict(lastResult);
     renderNote(lastResult);
-    showTab('verdict');
+    $('#verdict').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   /* ── Rendering: verdict ──────────────────────────────────────────────── */
@@ -483,7 +549,14 @@
     const span = document.createElement('span');
     span.className = 'rule-id';
     span.textContent = id;
-    span.title = RULES[id] ? RULES[id].name + ' — ' + RULES[id].description : id;
+    span.dataset.rule = id;
+    span.setAttribute('role', 'button');
+    span.setAttribute('tabindex', '0');
+    span.setAttribute('aria-expanded', 'false');
+    span.title = RULES[id] ? RULES[id].name : id;
+    span.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); span.click(); }
+    });
     return span;
   }
 
@@ -508,30 +581,64 @@
   }
 
   function renderVerdict(res) {
-    const host = $('#verdict-body');
-    host.innerHTML = '';
-    $('#verdict-empty').hidden = true;
-    host.hidden = false;
+    const outer = $('#verdict');
+    outer.innerHTML = '';
+    outer.hidden = false;
 
-    /* Banner */
-    const banner = document.createElement('div');
-    banner.className = 'banner ' + BANNER_CLASS[res.verdict];
+    const host = document.createElement('div');
+    host.className = 'finding ' + BANNER_CLASS[res.verdict];
+    outer.appendChild(host);
 
-    const label = document.createElement('span');
-    label.className = 'banner-label';
-    label.textContent = BANNER_TEXT[res.verdict];
-    banner.appendChild(label);
+    /* The finding, stamped. */
+    const top = document.createElement('div');
+    top.className = 'finding-top';
 
-    const score = document.createElement('span');
-    score.className = 'banner-score';
-    score.textContent = `name score ${res.nameScore} / 100`;
-    banner.appendChild(score);
+    const stamp = document.createElement('div');
+    stamp.className = 'stamp';
+    stamp.textContent = BANNER_TEXT[res.verdict];
+    top.appendChild(stamp);
+
+    const gist = document.createElement('div');
+    gist.className = 'finding-gist';
+
+    const score = document.createElement('div');
+    score.className = 'finding-score';
+    score.innerHTML = 'Name score <b>' + res.nameScore + '</b> / 100';
+    gist.appendChild(score);
+
+    // The bar plus the two thresholds it was judged against, so the decision is
+    // legible without reading the sentence underneath.
+    const meter = document.createElement('div');
+    meter.className = 'meter';
+    const bar = document.createElement('i');
+    bar.style.width = Math.max(2, res.nameScore) + '%';
+    meter.appendChild(bar);
+    [['refer', res.thresholds.refer], ['match', res.thresholds.match]].forEach(([label, at]) => {
+      const tick = document.createElement('u');
+      tick.style.left = at + '%';
+      tick.dataset.label = label + ' ' + at;
+      tick.title = 'Threshold: ' + label + ' at ' + at;
+      meter.appendChild(tick);
+    });
+    gist.appendChild(meter);
 
     const sub = document.createElement('p');
-    sub.className = 'banner-sub';
+    sub.className = 'finding-reason';
     sub.textContent = res.verdictReason;
-    banner.appendChild(sub);
-    host.appendChild(banner);
+    gist.appendChild(sub);
+    top.appendChild(gist);
+
+    const acts = document.createElement('div');
+    acts.className = 'finding-actions';
+    const noteBtn = document.createElement('button');
+    noteBtn.type = 'button';
+    noteBtn.className = 'btn btn-small';
+    noteBtn.textContent = 'Case note';
+    noteBtn.addEventListener('click', () => openModal('modal-note'));
+    acts.appendChild(noteBtn);
+    top.appendChild(acts);
+
+    host.appendChild(top);
 
     /* Hard stops */
     if (res.hardStops.length) {
@@ -686,21 +793,19 @@
     checkBlock.appendChild(ctable);
     host.appendChild(checkBlock);
 
-    /* Reproducibility footer */
+    /* Reproducibility line — everything needed to run this again. */
     const foot = document.createElement('p');
-    foot.className = 'muted';
+    foot.className = 'repro';
     foot.textContent =
-      `Engine ${res.engineVersion} · thresholds match ≥ ${res.thresholds.match}, ` +
-      `refer ≥ ${res.thresholds.refer} · evaluated ${res.evaluatedOn}. ` +
-      'The same inputs and thresholds always produce this same result.';
+      `Engine ${res.engineVersion} · thresholds match \u2265 ${res.thresholds.match}, ` +
+      `refer \u2265 ${res.thresholds.refer} · evaluated ${res.evaluatedOn} · ` +
+      'the same inputs and thresholds always produce this same finding.';
     host.appendChild(foot);
   }
 
   /* ── Rendering: case note ────────────────────────────────────────────── */
 
   function renderNote(res) {
-    $('#note-empty').hidden = true;
-    $('#note-body').hidden = false;
     $('#note-text').value = KYC.caseNote(res);
     $('#copy-status').textContent = '';
   }
@@ -781,10 +886,8 @@
     renderMethod();
     resetThresholds();
 
-    $$('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
-    $$('[data-goto]').forEach((b) =>
-      b.addEventListener('click', () => showTab(b.dataset.goto))
-    );
+    wireModals();
+    wireRulePop();
 
     $('#records-form').addEventListener('submit', (e) => {
       e.preventDefault();

@@ -3,145 +3,172 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
 <title>Arabic Name Matching for KYC</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<header class="site-header">
+<header class="masthead">
   <div class="wrap">
+    <!-- The page introduces itself in the grammar of the document it reads.
+         Decorative only, so it is hidden from assistive technology. -->
+    <div class="mrz-band" aria-hidden="true"><span>P&lt;UTOKYC&lt;NAME&lt;MATCH&lt;&lt;ARABIC&lt;HEBREW&lt;LATIN<span class="fill">&lt;&lt;&lt;&lt;</span></span><span>RULE&lt;BASED&lt;&lt;EVERY&lt;SCORE&lt;NAMES&lt;ITS&lt;RULE<span class="fill">&lt;&lt;&lt;&lt;&lt;&lt;</span></span></div>
+
     <h1>Arabic name matching for KYC</h1>
-    <p class="tagline">
-      Deterministic identity-record comparison across Arabic, Hebrew and Latin script.
-      Every point awarded or docked names the rule that produced it.
+    <p class="lede">
+      Compare two identity records across Arabic, Hebrew and Latin script and get a finding
+      you can defend. <strong>Every point awarded or docked names the rule that produced
+      it</strong> — press any rule to read it.
     </p>
-    <p class="notice" role="note">
-      <strong>Synthetic data only.</strong> Every name, document number and address in this
-      tool is invented. No real person or document appears anywhere in it. Everything runs in
-      your browser — nothing is uploaded, stored or sent anywhere.
-    </p>
+
+    <div class="masthead-meta">
+      <span class="badge">Synthetic data only</span>
+      <button type="button" class="btn btn-small" data-open="modal-method">How it works</button>
+      <button type="button" class="btn btn-small" data-open="modal-privacy">Where your data goes</button>
+      <a class="link-btn" href="tests.html">Run the test suite</a>
+    </div>
   </div>
 </header>
 
-<nav class="tabs wrap" aria-label="Sections">
-  <button class="tab" data-tab="input" aria-selected="true">Input</button>
-  <button class="tab" data-tab="verdict" aria-selected="false">Verdict</button>
-  <button class="tab" data-tab="note" aria-selected="false">Case note</button>
-  <button class="tab" data-tab="method" aria-selected="false">Method</button>
-</nav>
-
 <main class="wrap">
 
-  <!-- ───────────────────────────── Screen 1: Input ───────────────────────────── -->
-  <section id="panel-input" class="panel" data-panel="input">
-
-    <div class="samples">
-      <h2>Load a sample case</h2>
-      <p class="muted">Synthetic cases that each demonstrate one behaviour.</p>
+  <!-- ── Sample cases ────────────────────────────────────────────────────── -->
+  <section class="block">
+    <div class="block-head">
+      <span class="eyebrow">Sample cases</span>
+      <span class="muted-sm">Synthetic, and each one shows a single behaviour</span>
+    </div>
+    <div class="block-body">
       <div class="sample-buttons" id="sample-buttons"><!-- built by app.js --></div>
       <p class="sample-blurb" id="sample-blurb"></p>
     </div>
+  </section>
 
-    <form id="records-form" autocomplete="off">
-      <div class="records">
+  <!-- ── The two records ─────────────────────────────────────────────────── -->
+  <form id="records-form" autocomplete="off">
+    <div class="records">
 
-        <fieldset class="record" data-record="a">
-          <legend>
+      <fieldset class="record" data-record="a">
+        <legend>
+          <div class="record-head">
             <span class="record-tag">Record A</span>
             <span class="record-name">Identity document</span>
-          </legend>
-          <div class="fields" data-fields="a"><!-- built by app.js --></div>
-        </fieldset>
+          </div>
+        </legend>
+        <div class="fields" data-fields="a"><!-- built by app.js --></div>
+      </fieldset>
 
-        <fieldset class="record" data-record="b">
-          <legend>
+      <fieldset class="record" data-record="b">
+        <legend>
+          <div class="record-head">
             <span class="record-tag">Record B</span>
             <span class="record-name">System record</span>
-          </legend>
-          <div class="fields" data-fields="b"><!-- built by app.js --></div>
-        </fieldset>
+          </div>
+        </legend>
+        <div class="fields" data-fields="b"><!-- built by app.js --></div>
+      </fieldset>
 
-      </div>
-
-      <div class="controls">
-        <details class="thresholds">
-          <summary>Decision thresholds</summary>
-          <p class="muted">
-            The name score sets the provisional verdict. The checklist below it can only lower
-            that verdict, never raise it. Both thresholds are recorded in the case note so a
-            reader can reproduce the run.
-          </p>
-          <label class="slider">
-            <span>Match at or above</span>
-            <input type="range" id="th-match" min="50" max="100" step="1" value="85">
-            <output id="th-match-out">85</output>
-          </label>
-          <label class="slider">
-            <span>Refer at or above</span>
-            <input type="range" id="th-refer" min="20" max="99" step="1" value="60">
-            <output id="th-refer-out">60</output>
-          </label>
-          <button type="button" class="link-btn" id="th-reset">Reset to defaults</button>
-        </details>
-
-        <div class="actions">
-          <button type="submit" class="primary" id="run-check">Run check</button>
-          <button type="button" class="secondary" id="clear-all">Clear</button>
-        </div>
-      </div>
-    </form>
-  </section>
-
-  <!-- ──────────────────────────── Screen 2: Verdict ──────────────────────────── -->
-  <section id="panel-verdict" class="panel" data-panel="verdict" hidden>
-    <div id="verdict-empty" class="empty">
-      <p>No check has been run yet.</p>
-      <button type="button" class="secondary" data-goto="input">Go to input</button>
     </div>
-    <div id="verdict-body" hidden><!-- built by app.js --></div>
-  </section>
 
-  <!-- ─────────────────────────── Screen 3: Case note ─────────────────────────── -->
-  <section id="panel-note" class="panel" data-panel="note" hidden>
-    <div id="note-empty" class="empty">
-      <p>No check has been run yet.</p>
-      <button type="button" class="secondary" data-goto="input">Go to input</button>
-    </div>
-    <div id="note-body" hidden>
-      <h2>Case note</h2>
-      <p class="muted">
-        The same finding as prose, for pasting into a case management system. This is the
-        work-product — the decision is only useful if it can be handed to someone else.
-      </p>
-      <div class="note-actions">
-        <button type="button" class="secondary" id="copy-note">Copy to clipboard</button>
-        <span class="copy-status" id="copy-status" role="status"></span>
+    <div class="runbar">
+      <details class="thresholds">
+        <summary>Decision thresholds</summary>
+        <p class="muted">
+          The name score sets the provisional finding. The field checks below it can only
+          lower that finding, never raise it. Both thresholds are recorded in the case note,
+          so anyone can reproduce the run.
+        </p>
+        <label class="slider">
+          <span>Match at or above</span>
+          <input type="range" id="th-match" min="50" max="100" step="1" value="85">
+          <output id="th-match-out">85</output>
+        </label>
+        <label class="slider">
+          <span>Refer at or above</span>
+          <input type="range" id="th-refer" min="20" max="99" step="1" value="60">
+          <output id="th-refer-out">60</output>
+        </label>
+        <button type="button" class="link-btn" id="th-reset">Reset to defaults</button>
+      </details>
+
+      <div class="run-actions">
+        <button type="button" class="btn" id="clear-all">Clear</button>
+        <button type="submit" class="btn btn-primary" id="run-check">Run comparison</button>
       </div>
-      <textarea id="note-text" rows="24" readonly spellcheck="false"></textarea>
     </div>
-  </section>
+  </form>
 
-  <!-- ───────────────────────────── Screen 4: Method ──────────────────────────── -->
-  <section id="panel-method" class="panel" data-panel="method" hidden>
-    <div id="method-body"><!-- built by app.js from the rule registry --></div>
-  </section>
+  <!-- ── The finding ─────────────────────────────────────────────────────── -->
+  <section id="verdict" hidden aria-live="polite"><!-- built by app.js --></section>
 
 </main>
 
 <footer class="site-footer">
   <div class="wrap">
     <p>
-      Client-side only — no backend, no database, no data retention, and nothing you enter
-      ever leaves the page. Reading a document image loads its recogniser from this same
-      site, on demand; the image itself is never uploaded.
-      Built from public sources: FATF guidance, ICAO Doc 9303, and published registry formats.
+      Every name, document number and address here is invented. Built from public sources:
+      FATF guidance, ICAO Doc 9303, and published registry formats.
     </p>
-    <p class="muted">
-      <a href="tests.html">Run the test suite</a> ·
+    <p class="muted-sm">
+      <a href="tests.html">Test suite</a> ·
+      <a href="https://github.com/DuraamKashkush/kyc-name-match">Source</a> ·
       <span id="engine-version-footer"></span>
     </p>
   </div>
 </footer>
+
+<!-- ── Modals ────────────────────────────────────────────────────────────── -->
+
+<dialog id="modal-method">
+  <div class="modal-head">
+    <h2>How it works</h2>
+    <button type="button" class="modal-close" data-close aria-label="Close">✕</button>
+  </div>
+  <div class="modal-body"><div id="method-body"><!-- built by app.js --></div></div>
+</dialog>
+
+<dialog id="modal-note">
+  <div class="modal-head">
+    <h2>Case note</h2>
+    <button type="button" class="modal-close" data-close aria-label="Close">✕</button>
+  </div>
+  <div class="modal-body">
+    <p class="muted">
+      The same finding as prose, for pasting into a case management system. This is the
+      work-product — a decision is only useful if it can be handed to someone else.
+    </p>
+    <div class="note-actions">
+      <button type="button" class="btn btn-small" id="copy-note">Copy to clipboard</button>
+      <span class="copy-status" id="copy-status" role="status"></span>
+    </div>
+    <textarea id="note-text" rows="22" readonly spellcheck="false"></textarea>
+  </div>
+</dialog>
+
+<dialog id="modal-privacy">
+  <div class="modal-head">
+    <h2>Where your data goes</h2>
+    <button type="button" class="modal-close" data-close aria-label="Close">✕</button>
+  </div>
+  <div class="modal-body">
+    <div class="method-prose">
+      <p><strong>Nowhere.</strong> There is no backend, no database and no account. Everything
+      you type is compared in this tab and is gone when you close it.</p>
+      <p>Reading a document image happens here too — the picture is decoded into a canvas in
+      your browser and never uploaded. The recogniser that reads it is served from this same
+      site rather than a third party, and only downloads when you actually ask to read an
+      image.</p>
+      <p>The one plain exception: this page is hosted on GitHub Pages, which sees the request
+      for the page itself, as any web host would.</p>
+      <p class="muted">Use synthetic data regardless. This is a demonstration, not a system of
+      record.</p>
+    </div>
+  </div>
+</dialog>
+
+<!-- Anchored explanation for any rule id, positioned by app.js -->
+<div id="rule-pop" hidden role="tooltip"></div>
 
 <script src="lexicon.js"></script>
 <script src="mrz.js"></script>
