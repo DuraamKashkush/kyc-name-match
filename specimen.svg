@@ -61,11 +61,17 @@
   <!-- Machine-readable zone. Valid ICAO Doc 9303 check digits. -->
   <line x1="14" y1="496" x2="986" y2="496" stroke="#111111" stroke-width="1.5"/>
   <rect x="14" y="496" width="972" height="150" fill="#ffffff"/>
-  <!-- No letter-spacing: the font is already monospaced, and adding tracking
+  <!-- Two rendering details that were arrived at by measuring, not taste.
+       No letter-spacing: the font is already monospaced, and adding tracking
        widens the gaps enough that the recogniser starts splitting glyphs and
-       losing characters. Line length is what everything downstream depends on. -->
-  <g font-family="Courier New, Courier, monospace" font-size="36" font-weight="bold"
-     fill="#000000" xml:space="preserve">
+       losing characters, which breaks the line length everything downstream
+       depends on. And the filler '<' is the character a general-purpose model
+       reads worst — Courier's thin angle bracket comes back as K or L — so the
+       font here is chosen for the clarity of that one glyph.
+       This file is the editable source; the app reads specimen.png, rendered
+       from it, so a visitor's installed fonts cannot change the result. -->
+  <g font-family="Lucida Console, DejaVu Sans Mono, Consolas, monospace"
+     font-size="36" fill="#000000" xml:space="preserve">
     <text x="34" y="562">P&lt;UTOERIKSSON&lt;&lt;ANNA&lt;MARIA&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;</text>
     <text x="34" y="618">L898902C36UTO7408122F3104150ZE184226B&lt;&lt;&lt;&lt;&lt;16</text>
   </g>

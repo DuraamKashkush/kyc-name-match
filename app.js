@@ -181,33 +181,22 @@
     el.className = 'capture-status' + (cls ? ' ' + cls : '');
   }
 
-  /* The bundled schematic, rasterised so it can go through the same path as a
-   * photograph. A clean vector render is far easier to read than a phone photo,
-   * so this demonstrates the pipeline rather than real-world accuracy. */
+  /* The bundled schematic, fed through exactly the same path as a photograph.
+   *
+   * A pre-rendered image rather than the SVG rasterised here: an SVG is drawn
+   * with whatever fonts the viewer happens to have, and the filler character
+   * '<' is precisely the glyph whose shape decides whether the zone reads at
+   * all. Rendering it on the visitor's machine would make the demo depend on
+   * their font stack, so everyone gets the same pixels instead. specimen.svg
+   * remains in the repo as the editable source.
+   *
+   * A clean vector render is still far easier to read than a phone photo, so
+   * this demonstrates the pipeline rather than real-world accuracy. */
   function readSpecimen(side) {
     setStatus(side, 'Loading the specimen…');
-    fetch('specimen.svg')
-      .then((r) => { if (!r.ok) throw new Error('specimen.svg not found'); return r.text(); })
-      .then((svg) => new Promise((resolve, reject) => {
-        const blob = new Blob([svg], { type: 'image/svg+xml' });
-        const url = URL.createObjectURL(blob);
-        const img = new Image();
-        img.onload = () => {
-          const c = document.createElement('canvas');
-          c.width = img.width || 1000;
-          c.height = img.height || 660;
-          const ctx = c.getContext('2d');
-          ctx.fillStyle = '#fff';
-          ctx.fillRect(0, 0, c.width, c.height);
-          ctx.drawImage(img, 0, 0);
-          URL.revokeObjectURL(url);
-          c.toBlob((b) => b ? resolve(new File([b], 'specimen.png', { type: 'image/png' }))
-                            : reject(new Error('Could not rasterise the specimen.')), 'image/png');
-        };
-        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not load the specimen.')); };
-        img.src = url;
-      }))
-      .then((file) => readImage(side, file))
+    fetch('specimen.png')
+      .then((r) => { if (!r.ok) throw new Error('specimen.png not found'); return r.blob(); })
+      .then((blob) => readImage(side, new File([blob], 'specimen.png', { type: 'image/png' })))
       .catch((e) => setStatus(side, e.message, 'bad'));
   }
 

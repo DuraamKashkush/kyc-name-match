@@ -688,6 +688,24 @@ var TEST_SUITE = (function () {
     eq(O.restoreTrailingFiller('P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<'),
        'P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<', 'clean input is unchanged');
   });
+  test('The bundled specimen carries an arithmetically valid zone', function () {
+    // The specimen is what the demo reads, so its check digits have to be real.
+    // Editing the drawing by hand without recomputing them would leave a demo
+    // that reports a document failing its own arithmetic. Guards the source SVG
+    // rather than the rendered PNG, since the SVG is what a person would edit.
+    if (typeof require === 'undefined') return;   // browser run: skipped
+    var svg = require('fs').readFileSync(__dirname + '/specimen.svg', 'utf8');
+    var lines = (svg.match(/>([PL][A-Z0-9&;lt<]{20,})</g) || [])
+      .map(function (m) { return m.slice(1, -1).replace(/&lt;/g, '<'); })
+      .filter(function (l) { return l.length === 44; });
+    eq(lines.length, 2, 'expected two 44-character lines in the specimen');
+    var parsed = M.parse(lines.join('\n'), 2026);
+    ok(parsed.ok, 'the specimen zone should parse');
+    eq(parsed.allValid, true, 'every check digit in the specimen must verify');
+    eq(parsed.fields.name.full, 'ANNA MARIA ERIKSSON');
+    eq(parsed.fields.issuingState, 'UTO',
+       'the specimen must stay on the fictional ICAO state, not a real country');
+  });
   test('The layout table agrees with what parse() actually reads', function () {
     // These are two descriptions of the same standard and must not drift apart.
     [['TD3', CLEAN_MRZ]].forEach(function (pair) {

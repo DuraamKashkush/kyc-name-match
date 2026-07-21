@@ -163,8 +163,10 @@ character-class error and the corrector leaves it alone.
 
 Honest limits: there is no published Tesseract model for OCR-B, so this runs the general
 English model with the character set restricted to the zone's own alphabet, and an angled
-photo in poor light often will not read at all. The bundled specimen is a clean vector
-drawing — it demonstrates the pipeline, not the accuracy you would get in a branch. The
+photo in poor light often will not read at all. The bundled specimen is a clean drawing at high
+resolution — it demonstrates the pipeline, not the accuracy you would get in a branch, and it
+ships as a fixed image because `<` is the glyph that decides whether a zone reads, so drawing
+it with the viewer's own fonts would make the demo depend on their machine. The
 specimen uses **UTO / Utopia**, the fictional state from ICAO Doc 9303 itself, so nothing in
 this repo resembles a real country's document. The image never leaves the browser.
 

@@ -230,9 +230,12 @@ var METHOD_PROSE = [
 '<p>Two honest limitations. There is no published Tesseract model for OCR-B, the typeface the ',
 'zone is set in, so this runs on the general English model with the character set restricted ',
 'to the zone\'s own alphabet; a photograph taken at an angle in poor light will often not read ',
-'at all. And the bundled specimen is a clean vector drawing, so it reads far more easily than ',
-'a real photograph would — it demonstrates the pipeline, not the accuracy you would get in a ',
-'branch.</p>',
+'at all. And the bundled specimen is a clean drawing rendered at high resolution, so it reads ',
+'far more easily than a real photograph would — it demonstrates the pipeline, not the accuracy ',
+'you would get in a branch. It ships as a fixed image rather than being drawn in your browser, ',
+'because the filler character <bdi>&lt;</bdi> is exactly the glyph whose shape decides whether ',
+'a zone reads at all, and rendering it here would make the result depend on which fonts you ',
+'happen to have installed.</p>',
 
 '<p>The image itself never leaves the browser, and neither does anything read from it.</p>',
 
