@@ -186,9 +186,38 @@ const RULES = {
     name: 'Document number format',
     description:
       'Length and character-set sanity for the stated document type. ICAO Doc 9303 ' +
-      'allows up to nine alphanumeric characters in the passport number field. Note that ' +
-      'the passport check digit lives in the machine-readable zone, not in the printed ' +
-      'number, so it cannot be verified from this field alone.',
+      'allows up to nine alphanumeric characters in the passport number field. The ' +
+      'passport check digit is not in the printed number — it is in the machine-readable ' +
+      'zone — so without an MRZ this is a format check and nothing more.',
+  },
+  'MRZ-1': {
+    name: 'MRZ check digits',
+    description:
+      'Each MRZ field carries a check digit under ICAO Doc 9303: weight the characters ' +
+      '7, 3, 1 repeating, sum, take modulo 10. This is what turns the document number ' +
+      'from "plausibly formatted" into arithmetically verified, and it is the reason the ' +
+      'MRZ is worth transcribing at all.',
+  },
+  'MRZ-2': {
+    name: 'MRZ composite check digit',
+    description:
+      'A final check digit computed over every field that already carries one. Altering ' +
+      'a single field and its own digit to match still fails this one, so the composite ' +
+      'is the check that catches a tampered zone rather than a typing slip.',
+  },
+  'MRZ-3': {
+    name: 'MRZ agrees with the printed record',
+    description:
+      'The machine-readable zone is compared against the values entered from the visual ' +
+      'part of the same document. A disagreement between the two halves of one document ' +
+      'is a genuine finding — it is where transcription errors and alterations show up.',
+  },
+  'MRZ-4': {
+    name: 'MRZ not readable',
+    description:
+      'The zone could not be parsed as TD3 (two lines of forty-four) or TD1 (three lines ' +
+      'of thirty). Reported as unread rather than guessed at — a half-parsed MRZ is worse ' +
+      'than none.',
   },
   'NUM-1': {
     name: 'Document numbers agree',

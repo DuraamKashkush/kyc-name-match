@@ -204,7 +204,8 @@ main { padding: 24px 0 48px; }
   letter-spacing: 0.01em;
 }
 .field input,
-.field select {
+.field select,
+.field textarea {
   width: 100%;
   font: inherit;
   font-size: 0.9rem;
@@ -214,8 +215,23 @@ main { padding: 24px 0 48px; }
   border-radius: var(--radius);
   padding: 7px 9px;
 }
+.field textarea.mono {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  resize: vertical;
+  white-space: pre;
+  overflow-x: auto;
+}
+.field-hint {
+  font-size: 0.75rem;
+  color: var(--ink-3);
+  margin: 5px 0 0;
+  line-height: 1.45;
+}
 .field input:focus,
-.field select:focus {
+.field select:focus,
+.field textarea:focus {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
   border-color: var(--accent);

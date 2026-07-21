@@ -89,6 +89,16 @@ points, it is a condition that stops the check. Date of birth distinguishes a ge
 discrepancy from a keying error — `1994-03-07` against `1994-07-03` is a day/month
 transposition and says so.
 
+**Machine-readable zone.** Optional, and the only field that can be verified rather than
+merely compared. The printed passport number carries no check digit — it lives in the MRZ —
+so ICAO Doc 9303 arithmetic (weights 7-3-1, modulo 10) turns "plausibly formatted" into
+verified. The composite digit spans every field that already carries one, so repairing a
+field *and* its own digit still fails. TD3 (passports) and TD1 (ID cards) are both read; the
+parser is tested against the published ICAO specimen. The zone is checked against the printed
+side of the *same* document — two halves of one document that disagree is a finding on its
+own — and, being always Latin, it supplies a second transcription of the name when the
+printed name is Arabic.
+
 ## What this approach cannot do
 
 Drop the vowels from **Mohammad** and **Mahmoud** and both reduce to `M-H-M-D`. No
@@ -115,7 +125,7 @@ outcome on its own.
 node tests.js
 ```
 
-71 assertions, no framework, no dependencies. The same file runs in the browser at
+83 assertions, no framework, no dependencies. The same file runs in the browser at
 [tests.html](https://omrankashkosh-coder.github.io/kyc-name-match/tests.html).
 
 Roughly half of them exist to hold the engine **back**. An engine tuned to match aggressively
@@ -128,10 +138,12 @@ actually runs on. That drifted once during development, which is why it is now a
 
 ## The data is synthetic
 
-Every name, document number and address in this repository is invented. No real person, real
-document or real customer record appears anywhere in it. The Israeli ID numbers in the sample
-cases carry arithmetically valid check digits so the validation rule has something real to
-verify, and correspond to no issued document.
+Every name, document number, address and machine-readable zone in this repository is invented.
+No real person, real document or real customer record appears anywhere in it. The Israeli ID
+numbers and the MRZ strings in the sample cases were constructed with arithmetically valid
+check digits so the validation rules have something real to verify; they correspond to no
+issued document. The one exception is the ICAO Doc 9303 specimen used in the tests, which is
+the published example from the standard itself.
 
 Built from public sources only: FATF guidance on customer due diligence, ICAO Doc 9303 for the
 travel-document number field, the published Israeli identity number check-digit scheme, and
@@ -148,6 +160,7 @@ python -m http.server 8000
 | File | |
 |---|---|
 | `engine.js` | the matching engine — pure functions, no DOM |
+| `mrz.js` | ICAO Doc 9303 machine-readable zone parsing and check digits |
 | `lexicon.js` | sound classes, particle tables, known names |
 | `rules.js` | the rule registry every score cites |
 | `app.js` | DOM wiring only |

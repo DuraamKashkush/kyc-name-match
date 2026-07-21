@@ -46,6 +46,8 @@ var KYC = (function () {
   var PAT_HE_           = L ? L.PATRONYMIC_HEBREW : PATRONYMIC_HEBREW;
   var KNOWN_            = L ? L.KNOWN_LOOKUP : KNOWN_LOOKUP;
   var canonLabel_       = L ? L.canonicalLabel : canonicalLabel;
+  var MRZ_ = (typeof module !== 'undefined' && module.exports)
+    ? require('./mrz.js') : MRZ;
 
   var VERSION = '1.0.0';
 
@@ -793,18 +795,135 @@ var KYC = (function () {
         }
       } else if (rec.docType === 'passport') {
         var ok = /^[A-Z0-9]{6,9}$/.test((rec.docNumber || '').toUpperCase().replace(/\s/g, ''));
+        // Whether this is only a format check depends on whether a zone was
+        // supplied. Saying "cannot be verified" directly above a verified MRZ
+        // would contradict the row underneath it.
+        var zone = rec.mrz ? MRZ_.parse(rec.mrz, 2000) : null;
+        var zoneVerified = !!(zone && zone.ok && zone.allValid);
         out.push(field('Passport format (' + side + ')', rec.docNumber, '',
           ok ? 'ok' : 'warn', ok ? 'Plausible' : 'Implausible', ['FMT-1'],
           ok
             ? 'Within the nine alphanumeric characters ICAO Doc 9303 allows in the ' +
-              'document-number field. Note that the passport check digit sits in the ' +
-              'machine-readable zone, not in the printed number, so it cannot be ' +
-              'verified from this field alone.'
+              'document-number field. ' + (zoneVerified
+                ? 'The check digit itself is verified from the machine-readable zone ' +
+                  'below, so this number is confirmed rather than merely well-formed.'
+                : 'The passport check digit sits in the machine-readable zone, not in ' +
+                  'the printed number, so without an MRZ this is a format check and ' +
+                  'nothing more.')
             : 'Outside the nine alphanumeric characters ICAO Doc 9303 allows in the ' +
               'document-number field.',
           ok ? null : 'REFER'));
       }
     });
+
+    return out;
+  }
+
+  /* ── Machine-readable zone ─────────────────────────────────────────────────
+   *
+   * Two distinct things are checked, and they answer different questions.
+   *
+   * The check digits ask: is this zone internally consistent? That is pure
+   * arithmetic and needs nothing else to verify against.
+   *
+   * The cross-check asks: does the machine-readable half of this document agree
+   * with the printed half? That is the control that catches a transcription
+   * error or an altered field, and it compares a record against ITSELF — not
+   * against the other record. Keeping the two apart matters: an MRZ that
+   * disagrees with its own document is a finding regardless of whether the two
+   * records describe the same person.
+   */
+  function checkMrz(rec, side, today) {
+    var out = [];
+    if (!rec.mrz || !String(rec.mrz).trim()) return out;
+
+    var parsed = MRZ_.parse(rec.mrz, Number(today.slice(0, 4)));
+
+    if (!parsed || !parsed.ok) {
+      out.push(field('MRZ (' + side + ')', rec.mrz, '', 'warn', 'Not readable',
+        ['MRZ-4'],
+        (parsed && parsed.error) || 'The zone could not be read.', null));
+      return out;
+    }
+
+    /* Check digits. */
+    var failed = parsed.checks.filter(function (c) { return !c.valid; });
+    var composite = parsed.checks.filter(function (c) { return c.field === 'Composite'; })[0];
+    var fieldChecks = parsed.checks.filter(function (c) { return c.field !== 'Composite'; });
+    var badFields = fieldChecks.filter(function (c) { return !c.valid; });
+
+    out.push(field('MRZ check digits (' + side + ')',
+      parsed.format + ', ' + fieldChecks.length + ' fields', '',
+      badFields.length ? 'bad' : 'ok',
+      badFields.length ? badFields.length + ' failed' : 'All verify',
+      ['MRZ-1'],
+      badFields.length
+        ? 'The check digit does not verify for: ' +
+          badFields.map(function (c) {
+            return c.field + ' (zone states ' + c.stated + ', the data computes to ' +
+                   c.computed + ')';
+          }).join('; ') + '. The zone as transcribed cannot have been validly issued.'
+        : 'Every field check digit verifies under ICAO Doc 9303 — document number, date ' +
+          'of birth and expiry are all arithmetically consistent with the digits printed ' +
+          'beside them. This is a real verification, not a format guess.',
+      badFields.length ? 'REFER' : null));
+
+    if (composite) {
+      out.push(field('MRZ composite (' + side + ')', composite.stated, composite.computed,
+        composite.valid ? 'ok' : 'bad',
+        composite.valid ? 'Verifies' : 'Fails', ['MRZ-2'],
+        composite.valid
+          ? 'The composite digit over all checked fields verifies. Changing one field and ' +
+            'its own digit to match would still fail here, so the zone is consistent as a ' +
+            'whole and not only field by field.'
+          : 'The composite digit does not verify even where individual fields do, which is ' +
+            'the signature of a field altered together with its own check digit.',
+        composite.valid ? null : 'REFER'));
+    }
+
+    /* Cross-check against what was keyed from the printed document. */
+    var f = parsed.fields;
+    var diffs = [], agreed = [];
+    function xcheck(label, mrzVal, printed, normalise) {
+      if (!mrzVal || !printed) return;
+      var m = normalise ? normalise(mrzVal) : String(mrzVal).toUpperCase();
+      var p = normalise ? normalise(printed) : String(printed).toUpperCase();
+      if (m === p) agreed.push(label);
+      else diffs.push(label + ' (zone ' + mrzVal + ', printed ' + printed + ')');
+    }
+    var strip = function (v) { return String(v).toUpperCase().replace(/[^A-Z0-9]/g, ''); };
+
+    xcheck('document number', f.documentNumber, rec.docNumber, strip);
+    xcheck('date of birth', f.dob, rec.dob);
+    xcheck('expiry', f.expiry, rec.expiry);
+
+    if (diffs.length || agreed.length) {
+      out.push(field('MRZ vs printed (' + side + ')',
+        agreed.length + ' agree', diffs.length + ' differ',
+        diffs.length ? 'bad' : 'ok',
+        diffs.length ? 'Disagrees' : 'Agrees', ['MRZ-3'],
+        diffs.length
+          ? 'The two halves of this one document disagree on: ' + diffs.join('; ') +
+            '. A document that contradicts itself is a finding in its own right, ' +
+            'independent of the comparison against the other record.'
+          : 'The machine-readable zone reproduces the printed ' + agreed.join(', ') +
+            ' exactly, so the document is internally consistent.',
+        diffs.length ? 'REFER' : null));
+    }
+
+    /* The MRZ name is always Latin, which is useful when the printed name is not:
+     * it gives a second, independently transcribed form of the same name, and it
+     * goes through the same matcher as everything else. */
+    if (f.name && f.name.full && rec.fullName) {
+      var nameCmp = compareNames(f.name.full, rec.fullName);
+      out.push(field('MRZ name (' + side + ')', f.name.full, rec.fullName,
+        nameCmp.score >= 85 ? 'ok' : (nameCmp.score >= 60 ? 'warn' : 'bad'),
+        nameCmp.score + '/100', ['MRZ-3'],
+        'The zone carries a Latin transcription of the name, which is worth having when ' +
+        'the printed name is not Latin. Scored against the printed name of the same ' +
+        'record through the same matcher used everywhere else: ' + nameCmp.score + '/100.',
+        nameCmp.score < 60 ? 'REFER' : null));
+    }
 
     return out;
   }
@@ -919,6 +1038,8 @@ var KYC = (function () {
       .concat([checkDob(recA, recB)])
       .concat([checkExpiry(recA, recB, today)])
       .concat(checkDocNumber(recA, recB))
+      .concat(checkMrz(recA, 'A', today))
+      .concat(checkMrz(recB, 'B', today))
       .concat(checkTypeAndCountry(recA, recB))
       .concat([checkAddress(recA, recB)]);
 

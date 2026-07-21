@@ -103,12 +103,33 @@ var METHOD_PROSE = [
 'genuine limitation, and this is the right place to say so rather than to hide it.</p>',
 '</div>',
 
-'<p>Other boundaries worth stating plainly: there is no OCR and no document authentication, ',
-'so the tool compares what it is given and cannot tell a forged document from a real one. ',
-'There is no sanctions or PEP screening. Address comparison is deliberately shallow. And ',
-'the passport check digit lives in the machine-readable zone rather than in the printed ',
-'number, so passport numbers get a format check where Israeli identity numbers get real ',
-'check-digit arithmetic.</p>',
+'<p>Other boundaries worth stating plainly: there is no OCR, so the machine-readable zone is ',
+'typed rather than scanned, and there is no chip or physical authentication — the tool ',
+'checks whether a document is <em>internally consistent</em>, not whether it is genuine. ',
+'There is no sanctions or PEP screening. Address comparison is deliberately shallow.</p>',
+
+'<h2>The machine-readable zone</h2>',
+
+'<p>The two or three lines at the foot of a passport or the back of an ID card are worth ',
+'transcribing for one reason: they carry check digits. Under ICAO Doc 9303 each field is ',
+'weighted 7, 3, 1 repeating, summed, and reduced modulo ten. The printed passport number has ',
+'no check digit of its own — it lives here — so without the zone the engine can only say a ',
+'number is plausibly formatted. With it, a transcription error fails arithmetic.</p>',
+
+'<p>A final <em>composite</em> digit is computed across every field that already carries one. ',
+'That is the one that matters: repairing a field and its own check digit together still ',
+'fails the composite, so it catches an altered zone rather than only a typing slip.</p>',
+
+'<p>The zone is then compared against the values keyed from the printed side of the same ',
+'document — a record checked against <em>itself</em>, not against the other record. Two halves ',
+'of one document that disagree is a finding in its own right, whatever the comparison ',
+'concludes. And because the zone is always Latin, it supplies a second, independently ',
+'transcribed form of the name when the printed name is Arabic or Hebrew, which goes through ',
+'the same matcher as everything else.</p>',
+
+'<p>Both TD3 (passports, two lines of forty-four) and TD1 (ID cards, three lines of thirty) ',
+'are read. TD2 is recognised and declined rather than guessed at. Load a sample case and ',
+'change any character in the zone to watch the digits fail.</p>',
 
 '<h2>Every rule the engine can cite</h2>',
 

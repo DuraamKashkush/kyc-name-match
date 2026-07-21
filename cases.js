@@ -25,7 +25,14 @@ const RECORD_FIELDS = [
   'expiry',
   'country',
   'address',
+  'mrz',
 ];
+
+/* The MRZ strings below were generated with valid ICAO Doc 9303 check digits so
+ * the verification rules have real arithmetic to run. They belong to no issued
+ * document. Only the identity documents carry one — a system record is keyed by
+ * a person and has no machine-readable zone, which is the whole reason the two
+ * halves are worth comparing. */
 
 const DOC_TYPES = [
   { value: 'passport', label: 'Passport' },
@@ -63,6 +70,7 @@ const SAMPLE_CASES = {
       expiry: '2031-05-14',
       country: 'IL',
       address: "12 Ha'Atzmaut St, Haifa",
+      mrz: 'I<ISR3102567891<<<<<<<<<<<<<<<\n9403073M3105146ISR<<<<<<<<<<<6\nALSAYED<<MOHAMMAD<AHMAD<<<<<<<',
     },
     b: {
       fullName: 'Mohammad Ahmad Al-Sayed',
@@ -87,6 +95,7 @@ const SAMPLE_CASES = {
       expiry: '2029-08-22',
       country: 'JO',
       address: 'عمان، الأردن',
+      mrz: 'P<JORELSAYED<<MOHAMMAD<AHMAD<<<<<<<<<<<<<<<<\nM1234567<0JOR9403073M2908225<<<<<<<<<<<<<<06',
     },
     b: {
       fullName: 'Muhammed Elsayed',
@@ -111,6 +120,7 @@ const SAMPLE_CASES = {
       expiry: '2031-05-14',
       country: 'IL',
       address: 'אום אל-פחם',
+      mrz: 'I<ISR3102567891<<<<<<<<<<<<<<<\n9403073M3105146ISR<<<<<<<<<<<6\nALSAYED<<MOHAMMAD<AHMAD<<<<<<<',
     },
     b: {
       fullName: 'Mohammad Ahmad Al-Sayed',
@@ -135,6 +145,7 @@ const SAMPLE_CASES = {
       expiry: '2029-08-22',
       country: 'JO',
       address: 'Amman, Jordan',
+      mrz: 'P<JORALSAYED<<MOHAMMAD<AHMAD<<<<<<<<<<<<<<<<\nM1234567<0JOR9403073M2908225<<<<<<<<<<<<<<06',
     },
     b: {
       fullName: 'Mahmoud Ahmad Al-Sharif',
@@ -156,4 +167,5 @@ const EMPTY_RECORD = {
   expiry: '',
   country: 'IL',
   address: '',
+  mrz: '',
 };

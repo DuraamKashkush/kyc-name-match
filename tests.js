@@ -368,6 +368,128 @@ var TEST_SUITE = (function () {
     eq(res.verdict, 'NO_MATCH', 'agreeing fields cannot raise the verdict');
   });
 
+  /* ── Machine-readable zone ────────────────────────────────────────────── */
+
+  group('Machine-readable zone (ICAO Doc 9303)');
+
+  var M = (typeof module !== 'undefined' && module.exports)
+    ? require('./mrz.js') : MRZ;
+
+  var TD3 = 'P<JORELSAYED<<MOHAMMAD<AHMAD<<<<<<<<<<<<<<<<\n' +
+            'M1234567<0JOR9403073M2908225<<<<<<<<<<<<<<06';
+  var TD1 = 'I<ISR3102567891<<<<<<<<<<<<<<<\n' +
+            '9403073M3105146ISR<<<<<<<<<<<6\n' +
+            'ALSAYED<<MOHAMMAD<AHMAD<<<<<<<';
+
+  test('The ICAO Doc 9303 specimen validates end to end', function () {
+    // The published TD3 specimen (Utopia / Anna Maria Eriksson). Validating
+    // against a document somebody else constructed is worth more than any
+    // assertion written against my own implementation, because it cannot be
+    // made to pass by accident.
+    var specimen = 'P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<\n' +
+                   'L898902C36UTO7408122F1204159ZE184226B<<<<<10';
+    var p = M.parse(specimen, 2026);
+    ok(p.ok, 'should parse');
+    eq(p.allValid, true, 'every check digit in the specimen must verify');
+    eq(p.fields.documentNumber, 'L898902C3');
+    eq(p.fields.dob, '1974-08-12');
+    eq(p.fields.expiry, '2012-04-15');
+    eq(p.fields.name.full, 'ANNA MARIA ERIKSSON');
+    eq(p.checks.length, 5, 'four field digits plus the composite');
+  });
+  test('A TD3 passport zone parses with every check digit verifying', function () {
+    var p = M.parse(TD3, 2026);
+    ok(p.ok, 'should parse');
+    eq(p.format, 'TD3');
+    eq(p.allValid, true, 'all check digits');
+    eq(p.fields.documentNumber, 'M1234567');
+    eq(p.fields.dob, '1994-03-07');
+    eq(p.fields.expiry, '2029-08-22');
+    eq(p.fields.nationality, 'JOR');
+  });
+  test('A TD1 ID-card zone parses with every check digit verifying', function () {
+    var p = M.parse(TD1, 2026);
+    ok(p.ok, 'should parse');
+    eq(p.format, 'TD1');
+    eq(p.allValid, true, 'all check digits');
+    eq(p.fields.documentNumber, '310256789');
+    eq(p.fields.dob, '1994-03-07');
+  });
+  test('The zone name field is read surname-last', function () {
+    eq(M.parse(TD3, 2026).fields.name.full, 'MOHAMMAD AHMAD ELSAYED');
+    eq(M.parse(TD3, 2026).fields.name.surname, 'ELSAYED');
+  });
+  test('A single altered character fails its check digit', function () {
+    // Change the document number without touching its check digit.
+    var tampered = TD3.replace('M1234567<0', 'M1234568<0');
+    var p = M.parse(tampered, 2026);
+    ok(p.ok, 'still parses');
+    eq(p.allValid, false, 'must not verify');
+  });
+  test('Altering a field AND its own digit still fails the composite', function () {
+    // This is the whole reason the composite digit exists: a forger who fixes
+    // the field-level digit is caught by the check that spans every field.
+    var num = 'M1234568';
+    var withDigit = num + '<' + M.checkDigit(num + '<');
+    var tampered = TD3.replace('M1234567<0', withDigit);
+    var p = M.parse(tampered, 2026);
+    var docCheck = p.checks.filter(function (c) { return c.field === 'Document number'; })[0];
+    var composite = p.checks.filter(function (c) { return c.field === 'Composite'; })[0];
+    eq(docCheck.valid, true, 'the field-level digit was repaired');
+    eq(composite.valid, false, 'but the composite must still fail');
+  });
+  test('Century inference: a birth date is never in the future', function () {
+    eq(M.parse(TD3, 2026).fields.dob, '1994-03-07', '94 is 1994, not 2094');
+  });
+  test('An unreadable zone is reported, not guessed at', function () {
+    var p = M.parse('NOT AN MRZ AT ALL', 2026);
+    eq(p.ok, false);
+    ok(p.error.length > 10, 'should explain what it expected');
+  });
+  test('A bad zone caps the verdict even when the names agree', function () {
+    var tampered = TD3.replace('M1234567<0', 'M1234568<0');
+    var res = K.compare(
+      rec({ fullName: 'Mohammad Al-Sayed', mrz: tampered }),
+      rec({ fullName: 'Mohammad Al-Sayed' }),
+      { today: TODAY });
+    eq(res.provisionalVerdict, 'MATCH', 'names are identical');
+    eq(res.verdict, 'REFER', 'the failed zone must cap it');
+    ok(res.hardStops.some(function (h) { return h.rule === 'MRZ-1'; }), 'MRZ-1 must cap');
+  });
+  test('A zone that disagrees with the printed record is a finding', function () {
+    var res = K.compare(
+      // Zone says M1234567, the operator keyed M7654321 from the printed page.
+      rec({ fullName: 'Mohammad Al-Sayed', mrz: TD3, docNumber: 'M7654321' }),
+      rec({ fullName: 'Mohammad Al-Sayed', docNumber: 'M7654321' }),
+      { today: TODAY });
+    var c = res.checks.filter(function (x) {
+      return x.field.indexOf('MRZ vs printed') === 0;
+    })[0];
+    ok(c, 'the cross-check must run');
+    eq(c.status, 'bad', 'must disagree');
+    eq(res.verdict, 'REFER', 'and cap the verdict');
+  });
+  test('A record with no zone is simply not checked', function () {
+    var res = K.compare(rec({ fullName: 'Mohammad Al-Sayed' }),
+                        rec({ fullName: 'Mohammad Al-Sayed' }), { today: TODAY });
+    ok(!res.checks.some(function (c) { return c.field.indexOf('MRZ') === 0; }),
+       'no MRZ rows should appear');
+    eq(res.verdict, 'MATCH', 'and nothing is capped');
+  });
+  test('The zone Latin name matches an Arabic printed name on the same document', function () {
+    // The payoff: the zone gives a second, independent Latin transcription, and
+    // it goes through the same matcher as everything else.
+    var res = K.compare(
+      rec({ fullName: 'محمد أحمد السيد', mrz: TD3 }),
+      rec({ fullName: 'Muhammed Elsayed' }),
+      { today: TODAY });
+    var c = res.checks.filter(function (x) {
+      return x.field.indexOf('MRZ name') === 0;
+    })[0];
+    ok(c, 'the name cross-check must run');
+    eq(c.status, 'ok', 'zone name should agree with the Arabic printed name: ' + c.statusLabel);
+  });
+
   /* ── Address ──────────────────────────────────────────────────────────── */
 
   group('Address');

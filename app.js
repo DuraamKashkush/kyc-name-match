@@ -23,6 +23,15 @@
     { key: 'country',   label: 'Issuing country',  type: 'select', options: COUNTRIES },
     { key: 'address',   label: 'Address',          type: 'text',   dir: true,
       placeholder: 'Street, city' },
+    { key: 'mrz',       label: 'Machine-readable zone (optional)', type: 'textarea',
+      rows: 3, mono: true,
+      // Deliberately not a realistic MRZ: a specimen zone as placeholder text
+      // reads as data the record already has, which is exactly the wrong thing
+      // to show on an empty field.
+      placeholder: 'Optional — paste the MRZ lines',
+      hint: 'The lines at the foot of a passport or the back of an ID card. They carry ' +
+            'ICAO 9303 check digits, so the document number can be verified rather than ' +
+            'only format-checked.' },
   ];
 
   let lastResult = null;
@@ -52,6 +61,18 @@
           o.textContent = opt.label;
           input.appendChild(o);
         });
+      } else if (def.type === 'textarea') {
+        input = document.createElement('textarea');
+        input.rows = def.rows || 3;
+        input.spellcheck = false;
+        // The MRZ is a fixed-width Latin format. Forcing LTR and monospace keeps
+        // the columns aligned even when the rest of the record is Arabic.
+        input.dir = 'ltr';
+        // An MRZ line is a fixed 44 or 30 characters and means nothing rewrapped,
+        // so scroll it sideways rather than folding it.
+        input.wrap = 'off';
+        if (def.mono) input.className = 'mono';
+        if (def.placeholder) input.placeholder = def.placeholder;
       } else {
         input = document.createElement('input');
         input.type = def.type;
@@ -66,6 +87,13 @@
       input.dataset.side = side;
       input.dataset.key = def.key;
       wrap.appendChild(input);
+
+      if (def.hint) {
+        const hint = document.createElement('p');
+        hint.className = 'field-hint';
+        hint.textContent = def.hint;
+        wrap.appendChild(hint);
+      }
 
       host.appendChild(wrap);
     });
