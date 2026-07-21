@@ -133,6 +133,33 @@ const SAMPLE_CASES = {
     },
   },
 
+  arabhebrew: {
+    label: 'Arabic ID vs Hebrew record',
+    blurb:
+      'An Israeli ID card is printed in Arabic and Hebrew; the bank keyed the Hebrew. No ' +
+      'Latin anywhere in this comparison — the two scripts are matched directly against ' +
+      'each other, including the town.',
+    a: {
+      fullName: 'محمد أحمد السيد',
+      dob: '1994-03-07',
+      docType: 'national_id',
+      docNumber: '310256789',
+      expiry: '2031-05-14',
+      country: 'IL',
+      address: 'أم الفحم',
+      mrz: '',
+    },
+    b: {
+      fullName: 'מוחמד אחמד אלסייד',
+      dob: '1994-03-07',
+      docType: 'national_id',
+      docNumber: '310256789',
+      expiry: '2031-05-14',
+      country: 'IL',
+      address: 'אום אל-פחם',
+    },
+  },
+
   different: {
     label: 'Different person, similar name',
     blurb:

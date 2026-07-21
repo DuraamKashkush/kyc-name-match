@@ -60,6 +60,10 @@ const NEAR_CLASSES = [
   [CLS.J, CLS.G, 'j, g and gh overlap across conventions'],
   [CLS.K, CLS.G, 'ق and غ are both written q or gh'],
   [CLS.W, CLS.F, 'v is written with و or with ف'],
+  // Hebrew has no letter for غ, so records write plain ר for it (the geresh that
+  // would mark it is routinely omitted). Israeli ר is a uvular fricative and غ is
+  // a velar one — close enough that this is a spelling slip, not a different name.
+  [CLS.R, CLS.G, 'Hebrew ר stands in for غ — Hebrew has no letter for it'],
   [CLS.Y, CLS.A, 'י carries both a consonant and a vowel'],
   [CLS.W, CLS.A, 'ו carries both a consonant and a vowel'],
 ];
@@ -127,8 +131,29 @@ const HEBREW_MAP = {
   'ש': CLS.X,
 };
 
-/* Niqqud, cantillation, geresh and gershayim. */
-const HEBREW_DIACRITICS = /[֑-ׇ׳״]/g;
+/* Niqqud, cantillation and gershayim. The GERESH (U+05F3) is deliberately NOT
+ * stripped here: in Israeli transliteration of Arabic it is a letter modifier,
+ * not an optional mark. ג׳ is j, ר׳ is gh, ת׳ is th — removing it collapses each
+ * of those onto the wrong sound. It is consumed by HEBREW_DIGRAPHS instead. */
+const HEBREW_DIACRITICS = /[֑-ׇ״]/g;
+
+/* Hebrew has no letters for several Arabic consonants, so Israeli orthography
+ * marks them by adding a geresh to the nearest available letter. These pairs are
+ * matched before single letters, exactly as the Latin digraphs are — and for the
+ * same reason: ג׳ must not be read as ג followed by nothing. */
+const HEBREW_DIGRAPHS = {
+  'ג׳': CLS.J,   // jim   ج — plain ג is already J, but be explicit
+  'ז׳': CLS.Z,   // zh
+  'צ׳': CLS.X,   // ch
+  'ש׳': CLS.X,   // sh
+  'ר׳': CLS.G,   // ghayn غ — the common Israeli rendering
+  'ע׳': CLS.G,   // ghayn غ — the other rendering
+  'ת׳': CLS.S,   // tha   ث
+  'ד׳': CLS.Z,   // dhal  ذ
+  'ח׳': CLS.H,   // kha   خ
+  'ט׳': CLS.Z,   // zha   ظ
+  'ס׳': CLS.X,   // sh, occasionally
+};
 
 /* ── Latin ──────────────────────────────────────────────────────────────── */
 
@@ -213,7 +238,7 @@ const ARTICLE_HEBREW     = /^אל(?=.{2,}$)/;
  * names — Abu Sayed is a surname, not a description. */
 const JOINERS_LATIN = ['abd', 'abdel', 'abdul', 'abdal', 'abu', 'abou', 'umm', 'um'];
 const JOINERS_ARABIC = ['عبد', 'أبو', 'ابو', 'أم', 'ام'];
-const JOINERS_HEBREW = ['עבד', 'אבו'];
+const JOINERS_HEBREW = ['עבד', 'אבו', 'אום', 'אם'];
 
 /* Patronymic markers. These genuinely are separators — "bin Ahmad" means "son of
  * Ahmad" — and systems drop them inconsistently, so they are removed. The
@@ -239,51 +264,60 @@ const PATRONYMIC_HEBREW = ['בן', 'בת'];
  * individual and is not derived from any customer data.
  */
 const KNOWN_NAMES = {
-  muhammad:    ['محمد', 'مُحمد', 'מוחמד', 'מחמד', 'mohammad', 'mohamed', 'muhammad',
+  muhammad:    ['محمد', 'مُحمد', 'מוחמד', 'מחמד', 'מוחמט', 'מחמט',
+                'mohammad', 'mohamed', 'muhammad',
                 'muhammed', 'mohammed', 'mohamad', 'muhamad', 'mohammod', 'mohd'],
-  mahmoud:     ['محمود', 'מחמוד', 'מוחמוד', 'mahmoud', 'mahmud', 'mahmood', 'mahmoudh',
-                'mehmood'],
-  ahmad:       ['أحمد', 'احمد', 'אחמד', 'ahmad', 'ahmed', 'ahmet', 'ahmadh'],
-  ali:         ['علي', 'עלי', 'ali', 'aly', 'alee', 'aali'],
-  alaa:        ['علاء', 'אלאא', 'alaa', 'ala', 'alaà', 'ala2'],
-  hassan:      ['حسن', 'חסן', 'חאסן', 'hassan', 'hasan', 'hassane', 'hasson'],
-  hussein:     ['حسين', 'חוסיין', 'חסין', 'hussein', 'hussain', 'husain', 'husein',
-                'hossein', 'hussien'],
-  ibrahim:     ['إبراهيم', 'ابراهيم', 'אבראהים', 'ibrahim', 'ebrahim', 'ibraheem',
-                'brahim', 'ibrahem'],
-  yousef:      ['يوسف', 'יוסף', 'yousef', 'youssef', 'yusuf', 'yousuf', 'yusef', 'youcef'],
-  khaled:      ['خالد', 'חאלד', 'khaled', 'khalid', 'kaled', 'khalad'],
-  khalil:      ['خليل', 'חליל', 'khalil', 'khaleel', 'kalil'],
-  omar:        ['عمر', 'עומר', 'omar', 'umar', 'omer', 'oumar'],
-  othman:      ['عثمان', 'עות׳מאן', 'othman', 'osman', 'uthman', 'usman'],
-  saeed:       ['سعيد', 'סעיד', 'saeed', 'said', 'sayeed', 'saied', 'sa3id'],
-  salem:       ['سالم', 'סאלם', 'salem', 'salim', 'saleem'],
-  samir:       ['سمير', 'סמיר', 'samir', 'sameer', 'samier'],
-  tarek:       ['طارق', 'טארק', 'tarek', 'tariq', 'tarik', 'tareq', 'tarec'],
-  nasser:      ['ناصر', 'נאסר', 'nasser', 'nasir', 'naser', 'nassir'],
-  jamal:       ['جمال', 'ג׳מאל', 'jamal', 'gamal', 'jamaal', 'djamal'],
-  kamal:       ['كمال', 'כמאל', 'kamal', 'kamel', 'kemal', 'kamaal'],
-  fadi:        ['فادي', 'פאדי', 'fadi', 'fady'],
-  rami:        ['رامي', 'ראמי', 'rami', 'ramy'],
-  bilal:       ['بلال', 'בילאל', 'bilal', 'belal', 'bilaal'],
-  yaser:       ['ياسر', 'יאסר', 'yaser', 'yasser', 'yassir', 'yasir'],
-  mustafa:     ['مصطفى', 'מוסטפא', 'mustafa', 'mostafa', 'moustafa', 'mustapha'],
-  abdullah:    ['عبدالله', 'עבדאללה', 'abdullah', 'abdallah', 'abdalla', 'abdulla',
-                'abdellah', 'abdalah'],
-  abdulrahman: ['عبدالرحمن', 'עבדאלרחמן', 'abdulrahman', 'abdelrahman', 'abdurrahman',
+  mahmoud:     ['محمود', 'מחמוד', 'מוחמוד', 'מאחמוד',
+                'mahmoud', 'mahmud', 'mahmood', 'mahmoudh', 'mehmood'],
+  ahmad:       ['أحمد', 'احمد', 'אחמד', 'אחמט', 'אהמד',
+                'ahmad', 'ahmed', 'ahmet', 'ahmadh'],
+  ali:         ['علي', 'עלי', 'אלי', 'עאלי', 'ali', 'aly', 'alee', 'aali'],
+  alaa:        ['علاء', 'אלאא', 'עלאא', 'alaa', 'ala', 'alaà', 'ala2'],
+  hassan:      ['حسن', 'חסן', 'חאסן', 'הסן', 'hassan', 'hasan', 'hassane', 'hasson'],
+  hussein:     ['حسين', 'חוסיין', 'חסין', 'חוסין',
+                'hussein', 'hussain', 'husain', 'husein', 'hossein', 'hussien'],
+  ibrahim:     ['إبراهيم', 'ابراهيم', 'אבראהים', 'איבראהים', 'אברהים',
+                'ibrahim', 'ebrahim', 'ibraheem', 'brahim', 'ibrahem'],
+  yousef:      ['يوسف', 'יוסף', 'יוסוף', 'יוסאף',
+                'yousef', 'youssef', 'yusuf', 'yousuf', 'yusef', 'youcef'],
+  khaled:      ['خالد', 'חאלד', 'ח׳אלד', 'כאלד', 'khaled', 'khalid', 'kaled', 'khalad'],
+  khalil:      ['خليل', 'חליל', 'ח׳ליל', 'כליל', 'khalil', 'khaleel', 'kalil'],
+  omar:        ['عمر', 'עומר', 'עמר', 'אומר', 'omar', 'umar', 'omer', 'oumar'],
+  othman:      ['عثمان', 'עות׳מאן', 'עותמאן', 'עוסמאן',
+                'othman', 'osman', 'uthman', 'usman'],
+  saeed:       ['سعيد', 'סעיד', 'סאעיד', 'saeed', 'said', 'sayeed', 'saied', 'sa3id'],
+  salem:       ['سالم', 'סאלם', 'סלים', 'salem', 'salim', 'saleem'],
+  samir:       ['سمير', 'סמיר', 'סאמיר', 'samir', 'sameer', 'samier'],
+  tarek:       ['طارق', 'טארק', 'טאריק', 'תארק',
+                'tarek', 'tariq', 'tarik', 'tareq', 'tarec'],
+  nasser:      ['ناصر', 'נאסר', 'נאצר', 'נסר', 'nasser', 'nasir', 'naser', 'nassir'],
+  jamal:       ['جمال', 'ג׳מאל', 'גמאל', 'ג׳אמל', 'jamal', 'gamal', 'jamaal', 'djamal'],
+  kamal:       ['كمال', 'כמאל', 'כאמל', 'קמאל', 'kamal', 'kamel', 'kemal', 'kamaal'],
+  fadi:        ['فادي', 'פאדי', 'פדי', 'fadi', 'fady'],
+  rami:        ['رامي', 'ראמי', 'רמי', 'rami', 'ramy'],
+  bilal:       ['بلال', 'בילאל', 'בלאל', 'bilal', 'belal', 'bilaal'],
+  yaser:       ['ياسر', 'יאסר', 'יסר', 'yaser', 'yasser', 'yassir', 'yasir'],
+  mustafa:     ['مصطفى', 'מוסטפא', 'מצטפא', 'מוסטאפא',
+                'mustafa', 'mostafa', 'moustafa', 'mustapha'],
+  abdullah:    ['عبدالله', 'עבדאללה', 'עבדאלה', 'עבדללה',
+                'abdullah', 'abdallah', 'abdalla', 'abdulla', 'abdellah', 'abdalah'],
+  abdulrahman: ['عبدالرحمن', 'עבדאלרחמן', 'עבדאלרחמאן',
+                'abdulrahman', 'abdelrahman', 'abdurrahman',
                 'abdalrahman', 'abderrahman', 'abdulrahmman'],
-  abdulaziz:   ['عبدالعزيز', 'abdulaziz', 'abdelaziz', 'abdalaziz', 'abdulazeez'],
-  fatima:      ['فاطمة', 'فاطمه', 'פאטמה', 'fatima', 'fatma', 'fatimah', 'fatema'],
-  mariam:      ['مريم', 'מרים', 'mariam', 'maryam', 'mariem', 'meryem'],
-  aisha:       ['عائشة', 'עאישה', 'aisha', 'aysha', 'aicha', 'ayesha'],
-  layla:       ['ليلى', 'ליילא', 'layla', 'laila', 'leila', 'lila'],
-  nour:        ['نور', 'נור', 'nour', 'noor', 'nur', 'noura'],
-  zainab:      ['زينب', 'זינב', 'zainab', 'zaynab', 'zeinab', 'zeynab'],
-  sara:        ['سارة', 'سارا', 'סארה', 'sara', 'sarah', 'saara'],
-  huda:        ['هدى', 'הודא', 'huda', 'hoda', 'houda'],
-  amal:        ['أمل', 'امل', 'אמל', 'amal', 'amaal'],
-  rana:        ['رنا', 'רנא', 'rana', 'ranaa'],
-  dina:        ['دينا', 'דינה', 'dina', 'deena', 'dena'],
+  abdulaziz:   ['عبدالعزيز', 'עבדאלעזיז', 'abdulaziz', 'abdelaziz', 'abdalaziz',
+                'abdulazeez'],
+  fatima:      ['فاطمة', 'فاطمه', 'פאטמה', 'פטמה', 'פאטמא',
+                'fatima', 'fatma', 'fatimah', 'fatema'],
+  mariam:      ['مريم', 'מרים', 'מריאם', 'מריים', 'mariam', 'maryam', 'mariem', 'meryem'],
+  aisha:       ['عائشة', 'עאישה', 'עאאישה', 'אישה', 'aisha', 'aysha', 'aicha', 'ayesha'],
+  layla:       ['ليلى', 'ליילא', 'לילא', 'ליילה', 'layla', 'laila', 'leila', 'lila'],
+  nour:        ['نور', 'נור', 'נוור', 'נוואר', 'nour', 'noor', 'nur', 'noura'],
+  zainab:      ['زينب', 'זינב', 'זיינב', 'זינאב', 'zainab', 'zaynab', 'zeinab', 'zeynab'],
+  sara:        ['سارة', 'سارا', 'סארה', 'סארא', 'sara', 'sarah', 'saara'],
+  huda:        ['هدى', 'הודא', 'הדא', 'הודה', 'huda', 'hoda', 'houda'],
+  amal:        ['أمل', 'امل', 'אמל', 'אמאל', 'amal', 'amaal'],
+  rana:        ['رنا', 'רנא', 'ראנא', 'rana', 'ranaa'],
+  dina:        ['دينا', 'דינה', 'דינא', 'dina', 'deena', 'dena'],
 };
 
 /* Flattened for lookup: every spelling points at its canonical id. */
@@ -324,7 +358,8 @@ const EQUIVALENCE_DISPLAY = [
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     CLS, WEAK, NEAR_CLASSES, NEAR_LOOKUP, ARABIC_MAP, ARABIC_DIACRITICS,
-    HEBREW_MAP, HEBREW_DIACRITICS, LATIN_DIGRAPHS, LATIN_MAP, LATIN_FOLD,
+    HEBREW_MAP, HEBREW_DIACRITICS, HEBREW_DIGRAPHS,
+    LATIN_DIGRAPHS, LATIN_MAP, LATIN_FOLD,
     VOWEL_GROUPS, ARTICLE_HYPHENATED, ARTICLE_PLAIN, ARTICLE_ASSIMILATED,
     ARTICLE_ARABIC, ARTICLE_HEBREW, JOINERS_LATIN, JOINERS_ARABIC, JOINERS_HEBREW,
     PATRONYMIC_LATIN, PATRONYMIC_ARABIC, PATRONYMIC_HEBREW, KNOWN_NAMES,

@@ -102,6 +102,22 @@ const RULES = {
       'vanish in transliteration. Whether such a letter survives into a Latin spelling ' +
       'is close to arbitrary, so adding or dropping one is charged at half rate.',
   },
+  'HEB-1': {
+    name: 'Hebrew geresh is a letter modifier',
+    description:
+      'Hebrew has no letters for several Arabic consonants, so Israeli orthography marks ' +
+      'them with a geresh: ג׳ is j, ר׳ is gh, ת׳ is th, ד׳ is dh, צ׳ is ch. It is a letter, ' +
+      'not an optional diacritic, and is read before single letters — removing it would ' +
+      'collapse each of those onto the wrong sound.',
+  },
+  'HEB-2': {
+    name: 'Word-final ה is uncertain',
+    description:
+      'A Hebrew name ending in ה gives no way to tell whether it renders the silent Arabic ' +
+      'ة (Shehadeh, Salameh) or the pronounced ه (Abdullah, Taha). Rather than guess, the ' +
+      'letter matches an Arabic h for free and costs only a quarter to drop — the one ' +
+      'handling that gets both families right instead of trading one for the other.',
+  },
   'VOW-1': {
     name: 'First vowel conflicts',
     description:

@@ -198,6 +198,62 @@ var TEST_SUITE = (function () {
     hasRule(r.rules, 'VOW-1');
   });
 
+  /* ── Hebrew ───────────────────────────────────────────────────────────── */
+
+  group('Hebrew — the script-specific problems');
+
+  test('The geresh is read as a letter, not stripped as a diacritic', function () {
+    // ג׳=j, ר׳=gh, ת׳=th, ד׳=dh. Stripping the mark would collapse each onto the
+    // wrong sound, which is what used to happen.
+    eq(K.skeleton('ר׳אנם'), K.skeleton('غانم'), 'ר׳ must be gh');
+    eq(K.skeleton('ת׳אבת'), K.skeleton('ثابت'), 'ת׳ must be th');
+    eq(K.skeleton('ג׳מאל'), K.skeleton('جمال'), 'ג׳ must be j');
+    eq(K.skeleton('ח׳אלד'), K.skeleton('خالد'), 'ח׳ must be kh');
+  });
+  test('A geresh typed as a plain apostrophe works too', function () {
+    // Records use the ASCII apostrophe at least as often as U+05F3.
+    eq(K.skeleton("ג'מאל"), K.skeleton('ג׳מאל'), 'apostrophe and geresh must agree');
+  });
+  test('A silent ة is matched through Hebrew final ה', function () {
+    gte(tok('شحادة', 'שחאדה').score, 0.9, 'Shehadeh');
+    gte(tok('سلامة', 'סלאמה').score, 0.9, 'Salameh');
+    gte(tok('حمادة', 'חמאדה').score, 0.9, 'Hamadeh');
+    gte(tok('عودة', 'עודה').score, 0.85, 'Odeh — short token, so the ה costs proportionally more');
+  });
+  test('A pronounced ه is NOT thrown away with it', function () {
+    // This is the assertion that matters. Mapping final ה to a vowel would fix
+    // the test above and silently break this one — both families have to work,
+    // because Hebrew writes ة and ه identically and cannot tell you which it is.
+    eq(tok('عبدالله', 'עבדאללה').score, 1, 'Abdullah');
+    eq(tok('طه', 'טאהה').score, 1, 'Taha');
+  });
+  test('A trailing Latin h is ambiguous in the same way', function () {
+    gte(tok('شحادة', 'Shehadeh').score, 0.9, 'silent ة');
+    eq(tok('صلاح', 'Salah').score, 1, 'pronounced ح must survive');
+    eq(tok('فرح', 'Farah').score, 1, 'pronounced ح must survive');
+  });
+  test('ר carries غ, since Hebrew has no letter for it', function () {
+    // With the geresh it is exact; without it, an honest refer rather than a
+    // match — the unmarked Hebrew spelling genuinely does not distinguish them.
+    eq(tok('غانم', 'ר׳אנם').score, 1, 'with geresh');
+    var bare = tok('غانم', 'ראנם').score;
+    ok(bare >= 0.6 && bare < 0.9,
+       'without geresh should refer, not match or fail — got ' + bare);
+  });
+  test('אום is joined on the Hebrew side as أم is on the Arabic side', function () {
+    eq(tokens('אום אל-פחם').length, 1, 'should join to one token');
+    eq(tokens('أم الفحم').length, 1, 'as Arabic already did');
+  });
+  test('All six directions agree for one person', function () {
+    var forms = ['محمد أحمد السيد', 'מוחמד אחמד אלסייד', 'Mohammad Ahmad Al-Sayed'];
+    for (var i = 0; i < forms.length; i++) {
+      for (var j = 0; j < forms.length; j++) {
+        if (i === j) continue;
+        gte(cmp(forms[i], forms[j]).score, 85, forms[i] + ' vs ' + forms[j]);
+      }
+    }
+  });
+
   /* ── Particles ────────────────────────────────────────────────────────── */
 
   group('Particles');
@@ -550,6 +606,14 @@ var TEST_SUITE = (function () {
     var r = sample('dobswap');
     eq(r.verdict, 'REFER');
     ok(r.hardStops.some(function (h) { return h.rule === 'DOB-SWAP'; }), 'DOB-SWAP must cap');
+  });
+  test('Arabic ID against a Hebrew record returns MATCH with no Latin involved', function () {
+    var r = sample('arabhebrew');
+    eq(r.verdict, 'MATCH');
+    eq(r.nameScore, 100, 'name score');
+    // The town has the same problem as the person and goes through the same engine.
+    var addr = r.checks.filter(function (c) { return c.field === 'Address'; })[0];
+    eq(addr.status, 'ok', 'أم الفحم vs אום אל-פחם: ' + addr.statusLabel);
   });
   test('Different person returns NO MATCH', function () {
     var r = sample('different');

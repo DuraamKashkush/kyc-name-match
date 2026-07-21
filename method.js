@@ -85,6 +85,57 @@ var METHOD_PROSE = [
 
 '<div class="classes" id="method-classes"></div>',
 
+'<h2>The Hebrew side</h2>',
+
+'<p>All six directions work the same way, because every script reduces into the one class ',
+'alphabet above — Arabic against Hebrew runs through exactly the same code as Arabic against ',
+'Latin. Hebrew matters here for a specific reason: an Israeli identity card is printed in ',
+'Hebrew <em>and</em> Arabic, while the bank record behind it was keyed by a clerk from one of ',
+'the two. The same person is <bdi>محمد السيد</bdi> and <bdi>מוחמד אלסייד</bdi> in the same ',
+'wallet.</p>',
+
+'<p>Three things about Hebrew are not shared with the other two scripts.</p>',
+
+'<h3>The geresh is a letter, not a mark</h3>',
+
+'<p>Hebrew has no letters for several Arabic consonants, so Israeli orthography marks them by ',
+'adding a geresh: <bdi>ג׳</bdi> is j, <bdi>ר׳</bdi> is gh, <bdi>ת׳</bdi> is th, <bdi>ד׳</bdi> ',
+'is dh, <bdi>צ׳</bdi> is ch. It looks like punctuation and is not — treating it as a diacritic ',
+'and stripping it collapses each of those onto the wrong sound. It is read before single ',
+'letters, the same way <em>kh</em> is read before <em>k</em> in the Latin mapper.</p>',
+
+'<h3>A final ה could be either of two Arabic letters</h3>',
+
+'<p>Arabic distinguishes <bdi>ة</bdi>, which is silent, from <bdi>ه</bdi>, which is ',
+'pronounced. Hebrew writes both as a final <bdi>ה</bdi> and gives no way to tell them apart. ',
+'Dropping it would fix one family of names and break the other:</p>',
+
+'<table class="translit">',
+'<tr><td><bdi>شحادة</bdi> / <bdi>שחאדה</bdi></td><td>silent ة — the ה must be droppable</td></tr>',
+'<tr><td><bdi>سلامة</bdi> / <bdi>סלאמה</bdi></td><td>silent ة — the ה must be droppable</td></tr>',
+'<tr><td><bdi>عبدالله</bdi> / <bdi>עבדאללה</bdi></td><td>pronounced ه — the ה must be kept</td></tr>',
+'<tr><td><bdi>طه</bdi> / <bdi>טאהה</bdi></td><td>pronounced ه — the ה must be kept</td></tr>',
+'</table>',
+
+'<p>So the letter is not dropped and not kept. It is marked <em>uncertain</em>: it matches an ',
+'Arabic h for nothing, and costs a quarter to delete. Both families then come out right, ',
+'which neither of the simpler answers manages. The same applies to a trailing <em>h</em> in ',
+'Latin — Shehadeh ends in a silent ة, Salah ends in a pronounced ح, and the spelling does not ',
+'say which.</p>',
+
+'<h3>ר stands in for a letter Hebrew does not have</h3>',
+
+'<p>There is no Hebrew letter for <bdi>غ</bdi>, so records write <bdi>ר</bdi> — with the ',
+'geresh in careful transcription, and usually without it in practice. Where the geresh is ',
+'present the two match outright. Where it has been dropped, <bdi>غانم</bdi> against ',
+'<bdi>ראנם</bdi> is charged as a near-miss and lands on <strong>refer</strong> rather than ',
+'match.</p>',
+
+'<p>That is deliberate. Without the mark, the Hebrew spelling genuinely does not distinguish ',
+'Ghanem from a name actually spelled with ר, and the same is true of <bdi>ת</bdi> for both t ',
+'and th. Referring an ambiguous pair to a human is the honest answer; scoring it as a match ',
+'would be inventing a distinction the record does not contain.</p>',
+
 '<h2>What this approach cannot do</h2>',
 
 '<div class="limitation">',

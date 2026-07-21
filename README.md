@@ -78,6 +78,15 @@ makes an Arabic string directly comparable to a Latin one — the comparison nev
 original letters. Vowels are dropped, because Arabic does not write them and charging edit
 distance for them would fail the very cases this tool exists to pass.
 
+**All six directions, not just Arabic→Latin.** Because every script reduces into that one
+alphabet, Arabic↔Hebrew runs through the same code as Arabic↔Latin. This matters in Israel
+specifically: an identity card is printed in Hebrew *and* Arabic, and the bank record behind
+it was keyed from one of the two. Hebrew brings three problems the other scripts don't have —
+the geresh is a letter rather than a diacritic (ג׳ is j, ר׳ is gh, ת׳ is th); a final ה
+renders both the silent Arabic ة and the pronounced ه with nothing to tell them apart; and ר
+stands in for غ, which Hebrew has no letter for. Measured across 35 names in all three
+scripts, the mean score is 99 in every direction.
+
 **Alignment.** Tokens are matched independently of order, because given, father and family
 name are not in a stable order across systems. A reordering is recorded, not penalised. A
 patronymic present in one record and absent from the other — the most common benign
@@ -126,7 +135,7 @@ outcome on its own.
 node tests.js
 ```
 
-83 assertions, no framework, no dependencies. The same file runs in the browser at
+92 assertions, no framework, no dependencies. The same file runs in the browser at
 [tests.html](https://duraamkashkush.github.io/kyc-name-match/tests.html).
 
 Roughly half of them exist to hold the engine **back**. An engine tuned to match aggressively
@@ -134,8 +143,12 @@ across transliterations will happily match two different people, so the suite as
 Mohammad ≠ Mahmoud, Hassan ≠ Hussein, Khaled ≠ Khalil — alongside asserting that محمد السيد,
 מוחמד אלסייד, *Mohammad Al-Sayed* and *Muhammed Elsayed* all match each other.
 
-One test compares the Method page's published sound-class table against the maps the engine
-actually runs on. That drifted once during development, which is why it is now a test.
+Two tests exist specifically to catch a plausible wrong fix. One asserts that Abdullah and
+Taha still score 100 across Arabic and Hebrew: the obvious way to handle a final ה is to drop
+it, which fixes Shehadeh and Salameh and silently breaks those two, because Hebrew writes the
+silent ة and the pronounced ه identically. The other compares the Method page's published
+sound-class table against the maps the engine actually runs on — that drifted once during
+development, which is why it is now a test.
 
 ## The data is synthetic
 

@@ -29,6 +29,7 @@ var KYC = (function () {
   var ARABIC_DIA_       = L ? L.ARABIC_DIACRITICS : ARABIC_DIACRITICS;
   var HEBREW_MAP_       = L ? L.HEBREW_MAP : HEBREW_MAP;
   var HEBREW_DIA_       = L ? L.HEBREW_DIACRITICS : HEBREW_DIACRITICS;
+  var HEBREW_DIGRAPHS_  = L ? L.HEBREW_DIGRAPHS : HEBREW_DIGRAPHS;
   var LATIN_DIGRAPHS_   = L ? L.LATIN_DIGRAPHS : LATIN_DIGRAPHS;
   var LATIN_MAP_        = L ? L.LATIN_MAP : LATIN_MAP;
   var LATIN_FOLD_       = L ? L.LATIN_FOLD : LATIN_FOLD;
@@ -49,7 +50,11 @@ var KYC = (function () {
   var MRZ_ = (typeof module !== 'undefined' && module.exports)
     ? require('./mrz.js') : MRZ;
 
-  var VERSION = '1.0.0';
+  /* Bumped whenever scoring behaviour changes. The case note records this, and
+   * the reproducibility claim it makes is only true within one version — 1.1.0
+   * scores some Hebrew pairs differently from 1.0.0, so a note from the older
+   * engine must not be expected to reproduce under this one. */
+  var VERSION = '1.1.0';
 
   /* ── Edit costs ────────────────────────────────────────────────────────
    *
@@ -143,18 +148,47 @@ var KYC = (function () {
    * dropping a vowel is what made two spellings agree. */
   function skeletonParts(token) {
     var script = detectScript(token);
-    var t = normalizeToken(token).replace(/[-'’`ʿʼ]/g, function (m) {
-      // An apostrophe in Latin transliteration usually stands for hamza or ayin.
-      return script === 'latin' ? "'" : '';
-    });
+    var t = normalizeToken(token);
+    if (script === 'hebrew') {
+      // A geresh is typed as a plain apostrophe at least as often as U+05F3.
+      // Normalise both to the real character so the digraph table has one form.
+      t = t.replace(/['’]/g, '׳').replace(/[-`ʿʼ]/g, '');
+    } else {
+      t = t.replace(/[-'’`ʿʼ]/g, function () {
+        // An apostrophe in Latin transliteration usually stands for hamza or ayin.
+        return script === 'latin' ? "'" : '';
+      });
+    }
+    // Each entry is { c: class, weak: presence is uncertain }.
     var codes = [];
     var i;
 
-    if (script === 'arabic' || script === 'hebrew') {
-      var map = script === 'arabic' ? ARABIC_MAP_ : HEBREW_MAP_;
+    if (script === 'arabic') {
       for (i = 0; i < t.length; i++) {
-        var c = map[t[i]];
-        if (c) codes.push(c);
+        var c = ARABIC_MAP_[t[i]];
+        if (c) codes.push({ c: c, weak: false });
+      }
+    } else if (script === 'hebrew') {
+      // Longest match first, for the same reason the Latin mapper needs it: ג׳
+      // must not be read as ג with a stray mark after it.
+      i = 0;
+      while (i < t.length) {
+        var pair = t.substr(i, 2);
+        if (Object.prototype.hasOwnProperty.call(HEBREW_DIGRAPHS_, pair)) {
+          codes.push({ c: HEBREW_DIGRAPHS_[pair], weak: false });
+          i += 2;
+          continue;
+        }
+        var hc = HEBREW_MAP_[t[i]];
+        if (hc) {
+          // Word-final ה is the genuinely ambiguous letter in this script: it
+          // renders the silent Arabic ة (Shehadeh, Salameh) and the pronounced
+          // ه (Abdullah, Taha) alike, and nothing in the spelling says which.
+          // Marking it uncertain lets it match an Arabic H for free and be
+          // dropped cheaply — the only handling that gets both families right.
+          codes.push({ c: hc, weak: t[i] === 'ה' && i === t.length - 1 });
+        }
+        i += 1;
       }
     } else {
       // Longest match first: "kh" must not be read as k followed by h. This is
@@ -163,23 +197,33 @@ var KYC = (function () {
       while (i < t.length) {
         var two = t.substr(i, 2);
         if (Object.prototype.hasOwnProperty.call(LATIN_DIGRAPHS_, two)) {
-          codes.push(LATIN_DIGRAPHS_[two]);
+          codes.push({ c: LATIN_DIGRAPHS_[two], weak: false });
           i += 2;
           continue;
         }
         var one = t[i];
         if (Object.prototype.hasOwnProperty.call(LATIN_MAP_, one)) {
-          codes.push(LATIN_MAP_[one]);
+          // A trailing h is as ambiguous in Latin as final ה is in Hebrew, and
+          // for the same reason: Shehadeh and Salameh end in a silent ة, while
+          // Salah and Farah end in a pronounced ح. Digraphs (kh, sh, th) are
+          // already consumed above, so anything reaching here is a bare h.
+          codes.push({ c: LATIN_MAP_[one], weak: one === 'h' && i === t.length - 1 });
         }
         i += 1;
       }
     }
 
     // Collapse doubled classes. Arabic marks gemination with shadda on a single
-    // letter, so "Mohammad" and محمد must not differ by the doubled m.
+    // letter, so "Mohammad" and محمد must not differ by the doubled m. If any
+    // letter in the run was uncertain, the survivor inherits that.
     var full = [];
     for (i = 0; i < codes.length; i++) {
-      if (i === 0 || codes[i] !== codes[i - 1]) full.push(codes[i]);
+      var prev = full[full.length - 1];
+      if (prev && codes[i].c === prev.c) {
+        prev.weak = prev.weak || codes[i].weak;
+      } else {
+        full.push({ c: codes[i].c, weak: codes[i].weak });
+      }
     }
 
     /* Reduce to consonants. This is the step that makes the whole thing work:
@@ -195,13 +239,19 @@ var KYC = (function () {
      * The cost of this is real and is documented on the Method page: dropping
      * vowels makes Mohammad and Mahmoud identical. That is what the known-name
      * table above the skeleton exists to catch. */
-    var cons = full.filter(function (c, idx) {
-      if (c === CLS_.A) return false;
-      if (c === CLS_.W || c === CLS_.Y) return idx === 0;
+    var cons = full.filter(function (e, idx) {
+      if (e.c === CLS_.A) return false;
+      if (e.c === CLS_.W || e.c === CLS_.Y) return idx === 0;
       return true;
     });
 
-    return { full: full.join(''), cons: cons.join('') };
+    function code(e) { return e.c; }
+    return {
+      full: full.map(code).join(''),
+      cons: cons.map(code).join(''),
+      // Parallel to cons: which letters are uncertain and so cheap to drop.
+      weak: cons.map(function (e) { return e.weak; }),
+    };
   }
 
   /* The consonant skeleton — what the comparison actually runs on. */
@@ -232,29 +282,40 @@ var KYC = (function () {
     return { cost: COST.UNRELATED_SUB, rule: 'SKEL-3' };
   }
 
-  function indelCost(x) {
-    return WEAK_.has(x)
-      ? { cost: COST.WEAK_INDEL, rule: 'WEAK-1' }
+  /* A letter is cheap to add or drop either because its whole class is weak
+   * (Arabic writes no short vowels) or because this particular letter is
+   * uncertain in this position — a word-final Hebrew ה, which may be standing
+   * for a silent ة or a pronounced ه and gives no way to tell. */
+  function indelCost(x, uncertain) {
+    return (uncertain || WEAK_.has(x))
+      ? { cost: COST.WEAK_INDEL, rule: uncertain ? 'HEB-2' : 'WEAK-1' }
       : { cost: COST.STRONG_INDEL, rule: 'SKEL-3' };
   }
 
   /* Levenshtein over the class alphabet with a backtrace, so the engine can say
    * WHICH rule priced each difference rather than only reporting a total. */
-  function skeletonDistance(s1, s2) {
+  function skeletonDistance(s1, s2, w1, w2) {
     var n = s1.length, m = s2.length;
     var d = [], op = [];
     var i, j;
+    // Weakness flags are optional; absent means every letter is certain.
+    function u1(k) { return !!(w1 && w1[k]); }
+    function u2(k) { return !!(w2 && w2[k]); }
 
     for (i = 0; i <= n; i++) { d[i] = [i === 0 ? 0 : 0]; op[i] = ['']; }
     d[0][0] = 0;
-    for (i = 1; i <= n; i++) { d[i][0] = d[i - 1][0] + indelCost(s1[i - 1]).cost; op[i][0] = 'del'; }
-    for (j = 1; j <= m; j++) { d[0][j] = d[0][j - 1] + indelCost(s2[j - 1]).cost; op[0][j] = 'ins'; }
+    for (i = 1; i <= n; i++) {
+      d[i][0] = d[i - 1][0] + indelCost(s1[i - 1], u1(i - 1)).cost; op[i][0] = 'del';
+    }
+    for (j = 1; j <= m; j++) {
+      d[0][j] = d[0][j - 1] + indelCost(s2[j - 1], u2(j - 1)).cost; op[0][j] = 'ins';
+    }
 
     for (i = 1; i <= n; i++) {
       for (j = 1; j <= m; j++) {
         var sub = d[i - 1][j - 1] + substitutionCost(s1[i - 1], s2[j - 1]).cost;
-        var del = d[i - 1][j] + indelCost(s1[i - 1]).cost;
-        var ins = d[i][j - 1] + indelCost(s2[j - 1]).cost;
+        var del = d[i - 1][j] + indelCost(s1[i - 1], u1(i - 1)).cost;
+        var ins = d[i][j - 1] + indelCost(s2[j - 1], u2(j - 1)).cost;
         var best = Math.min(sub, del, ins);
         d[i][j] = best;
         op[i][j] = best === sub ? 'sub' : (best === del ? 'del' : 'ins');
@@ -272,11 +333,11 @@ var KYC = (function () {
         else if (s1[i - 1] === s2[j - 1]) { rules['CLS-1'] = true; }
         i--; j--;
       } else if (o === 'del') {
-        rules[indelCost(s1[i - 1]).rule] = true;
+        rules[indelCost(s1[i - 1], u1(i - 1)).rule] = true;
         notes.push('-' + s1[i - 1]);
         i--;
       } else {
-        rules[indelCost(s2[j - 1]).rule] = true;
+        rules[indelCost(s2[j - 1], u2(j - 1)).rule] = true;
         notes.push('+' + s2[j - 1]);
         j--;
       }
@@ -343,7 +404,7 @@ var KYC = (function () {
       return applyVowelCheck(res, a, b);
     }
 
-    var dist = skeletonDistance(s1, s2);
+    var dist = skeletonDistance(s1, s2, pa.weak, pb.weak);
     var maxLen = Math.max(s1.length, s2.length);
     var score = Math.max(0, 1 - dist.cost / maxLen);
 
@@ -985,13 +1046,14 @@ var KYC = (function () {
 
     var pa = preprocessTokens(tokenize(la)).tokens.join('');
     var pb = preprocessTokens(tokenize(lb)).tokens.join('');
-    var sa = skeleton(pa), sb = skeleton(pb);
+    var ka = skeletonParts(pa), kb = skeletonParts(pb);
+    var sa = ka.cons, sb = kb.cons;
 
     var score;
     if (sa === sb) {
       score = 1;
     } else {
-      var d = skeletonDistance(sa, sb);
+      var d = skeletonDistance(sa, sb, ka.weak, kb.weak);
       score = Math.max(0, 1 - d.cost / Math.max(sa.length, sb.length, 1));
     }
     var pct = Math.round(score * 100);
