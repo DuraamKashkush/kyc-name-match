@@ -555,7 +555,10 @@ var TEST_SUITE = (function () {
 
   test('The engine contains no reference to OCR at all', function () {
     // The boundary is the whole point, so it is checked structurally rather
-    // than trusted. engine.js must not mention the reader in any form.
+    // than trusted: engine.js must not mention the reader in any form. This
+    // one reads the source, so it only runs under Node — the Node run is the
+    // authoritative check, and it is also the environment where the engine is
+    // exercised with the reader entirely absent.
     if (typeof require === 'undefined') return;   // browser run: skipped
     var src = require('fs').readFileSync(__dirname + '/engine.js', 'utf8');
     ok(!/\bOCR\b/.test(src.replace(/'OCR-[12]'|OCR-[12]/g, '')),
