@@ -27,11 +27,12 @@ every one of them.
 
 That human has to know three things no string comparison knows:
 
-- **ه**, **خ** and **ح** are three different Arabic letters that all collapse to *h* in Latin.
+- The letters **ح**, **خ** and **ه** are three different Arabic consonants that all collapse
+  to a single *h* in Latin.
 - Arabic writes no short vowels, so Mohammad, Muhammed and Mohamed are **one consonant
   skeleton — M-H-M-D — wearing three different sets of vowels**.
-- *al-* and *el-* are the definite article. They are not part of the surname, and one system
-  will carry them while the next drops them.
+- The particles *al-* and *el-* are the definite article. They are not part of the surname,
+  and one system will carry them while the next drops them.
 
 This tool encodes that knowledge as rules. Load the **Transliteration mismatch** sample and
 you can watch an Arabic passport match a Latin system record, with every step named.
