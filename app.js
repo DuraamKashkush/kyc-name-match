@@ -157,9 +157,38 @@
   function wireCapture(side) {
     $(`#${side}-image`).addEventListener('change', (e) => {
       if (e.target.files && e.target.files[0]) readImage(side, e.target.files[0]);
+      // Clear it, or choosing the same file twice fires no second change event.
       e.target.value = '';
     });
     $(`[data-specimen="${side}"]`).addEventListener('click', () => readSpecimen(side));
+
+    // Dropping a file is the other way people expect to hand an image to a
+    // page. Same entry point as the picker, so there is one code path.
+    const zone = $(`[data-capture="${side}"]`);
+    const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
+
+    ['dragenter', 'dragover'].forEach((type) =>
+      zone.addEventListener(type, (e) => { stop(e); zone.classList.add('dragging'); }));
+
+    ['dragleave', 'dragend'].forEach((type) =>
+      zone.addEventListener(type, (e) => {
+        stop(e);
+        // dragleave fires when crossing onto a child too, so only drop the
+        // highlight once the pointer has actually left the panel.
+        if (!zone.contains(e.relatedTarget)) zone.classList.remove('dragging');
+      }));
+
+    zone.addEventListener('drop', (e) => {
+      stop(e);
+      zone.classList.remove('dragging');
+      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (!file) return;
+      if (!/^image\//.test(file.type)) {
+        setStatus(side, 'That is not an image file.', 'bad');
+        return;
+      }
+      readImage(side, file);
+    });
   }
 
   function setStatus(side, text, cls) {

@@ -41,13 +41,30 @@
             <h2>Identity document</h2>
             <span class="card-sub">Record A</span>
           </div>
-          <div class="card-tools">
-            <label class="chip-btn">Scan
-              <input type="file" accept="image/*" id="a-image" hidden>
-            </label>
-            <button type="button" class="chip-btn" data-specimen="a">Specimen</button>
-          </div>
         </div>
+
+        <!-- The capture surface leads the card: reading the document is how you
+             fill this form, so it should not have to be hunted for. Doubles as a
+             drop target, wired in app.js. -->
+        <div class="capture" data-capture="a">
+          <label class="capture-main">
+            <span class="capture-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none"
+                   stroke="currentColor" stroke-width="1.7"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/>
+                <path d="M3 12h18"/>
+              </svg>
+            </span>
+            <span class="capture-text">
+              <b>Scan a document</b>
+              <small>Drop an image here, or choose a file</small>
+            </span>
+            <input type="file" accept="image/*" id="a-image" hidden>
+          </label>
+          <button type="button" class="capture-alt" data-specimen="a">Try the specimen</button>
+        </div>
+
         <div class="capture-status" id="a-ocr-status" role="status"></div>
         <div class="proposals" id="a-proposals" hidden></div>
         <div class="rows" data-fields="a"></div>
@@ -59,13 +76,30 @@
             <h2>System record</h2>
             <span class="card-sub">Record B</span>
           </div>
-          <div class="card-tools">
-            <label class="chip-btn">Scan
-              <input type="file" accept="image/*" id="b-image" hidden>
-            </label>
-            <button type="button" class="chip-btn" data-specimen="b">Specimen</button>
-          </div>
         </div>
+
+        <!-- The capture surface leads the card: reading the document is how you
+             fill this form, so it should not have to be hunted for. Doubles as a
+             drop target, wired in app.js. -->
+        <div class="capture" data-capture="b">
+          <label class="capture-main">
+            <span class="capture-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none"
+                   stroke="currentColor" stroke-width="1.7"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/>
+                <path d="M3 12h18"/>
+              </svg>
+            </span>
+            <span class="capture-text">
+              <b>Scan a document</b>
+              <small>Drop an image here, or choose a file</small>
+            </span>
+            <input type="file" accept="image/*" id="b-image" hidden>
+          </label>
+          <button type="button" class="capture-alt" data-specimen="b">Try the specimen</button>
+        </div>
+
         <div class="capture-status" id="b-ocr-status" role="status"></div>
         <div class="proposals" id="b-proposals" hidden></div>
         <div class="rows" data-fields="b"></div>

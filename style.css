@@ -232,21 +232,66 @@ main {
   color: var(--ink-3);
 }
 
-.card-tools { display: flex; gap: 6px; flex: none; }
+/* ── Capture surface ─────────────────────────────────────────────────────
+ *
+ * Reading the document is how the form gets filled, so this leads the card
+ * rather than hiding in its header. Big enough to hit, and a drop target as
+ * well as a button — the two ways anyone expects to hand a file to a page.
+ */
 
-.chip-btn {
-  font: inherit;
-  font-size: 12px;
-  color: var(--blue);
-  background: rgba(0, 113, 227, 0.08);
-  border: 0;
-  border-radius: var(--r-pill);
-  padding: 5px 11px;
+.capture { padding: 0 20px 16px; }
+
+.capture-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 18px;
   cursor: pointer;
-  white-space: nowrap;
+  background: rgba(0, 113, 227, 0.055);
+  border: 1.5px dashed rgba(0, 113, 227, 0.3);
+  border-radius: var(--r-ctrl);
+  transition: background 0.18s var(--ease), border-color 0.18s var(--ease);
+}
+.capture-main:hover { background: rgba(0, 113, 227, 0.1); }
+
+/* Dragging a file over it: same state whichever way you arrive. */
+.capture.dragging .capture-main {
+  background: rgba(0, 113, 227, 0.16);
+  border-color: var(--blue);
+  border-style: solid;
+}
+
+.capture-icon {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: var(--blue);
+  border-radius: 11px;
+}
+
+.capture-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.capture-text b { font-size: 15px; font-weight: 600; }
+.capture-text small { font-size: 12.5px; color: var(--ink-2); }
+
+.capture-alt {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 7px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--blue);
+  background: none;
+  border: 0;
+  border-radius: var(--r-ctrl);
+  cursor: pointer;
   transition: background 0.18s var(--ease);
 }
-.chip-btn:hover { background: rgba(0, 113, 227, 0.15); }
+.capture-alt:hover { background: rgba(0, 113, 227, 0.08); }
 
 /* ── Field rows ──────────────────────────────────────────────────────────── */
 
@@ -366,7 +411,7 @@ main {
 /* ── Reading a document image ────────────────────────────────────────────── */
 
 .capture-status:not(:empty) {
-  margin: 0 20px 14px;
+  margin: -4px 20px 14px;
   padding: 9px 12px;
   font-size: 13px;
   line-height: 1.4;
@@ -1017,7 +1062,8 @@ dialog.sheet::backdrop {
   .field-mrz textarea { width: calc(100% - 32px); margin: 0 16px 14px; }
 
   .card-head { padding: 16px 16px 12px; }
-  .capture-status:not(:empty), .proposals { margin: 0 16px 12px; }
+  .capture { padding: 0 16px 14px; }
+  .capture-status:not(:empty), .proposals { margin: -2px 16px 12px; }
 
   .score { font-size: 60px; }
   .result-hero { padding: 34px 20px 28px; }
