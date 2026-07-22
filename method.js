@@ -234,6 +234,13 @@ var METHOD_PROSE = [
 'reader, does not know it exists, and produces identical output whether or not it has been ',
 'loaded. There is a test that asserts precisely that.</p>',
 
+'<p>The form stays the operator's, though. Every value the reader proposes can be edited or ',
+'cleared, and what the reader saw is kept beside the field so it can be put back — clearing ',
+'a field by accident should not mean scanning the document a second time. Restoring a value ',
+'returns it to the reader's standing, not to a confirmed one: pressing a button to put a ',
+'machine reading back is not a person vouching for it, and the outcome stays capped until ',
+'someone does.</p>',
+
 '<p>The reason is the claim at the top of this page. A verdict here is reproducible and ',
 'explainable rule by rule. Optical recognition is a machine\'s best guess at what some pixels ',
 'say; the moment a misread character could move a verdict, that claim would be gone. So the ',

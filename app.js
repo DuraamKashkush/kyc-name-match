@@ -50,6 +50,12 @@
    * disclosure. Editing a field by hand always returns it to 'typed'. */
   const provenance = { a: {}, b: {} };
 
+  /* What the reader last returned, per record. Kept so the panel can be redrawn
+   * as the operator edits, and so a value read from the document can be put
+   * back after it has been changed or cleared. */
+  const lastRead = { a: null, b: null };
+  const proposalSig = { a: '', b: '' };
+
   /* ── Field construction ──────────────────────────────────────────────── */
 
   function buildFields(side) {
@@ -115,6 +121,10 @@
           delete provenance[side][def.key];
           renderSourceChips(side);
         }
+        // The panel's buttons describe each field's current state, so they go
+        // stale the moment a field is touched. Redrawn only when a state
+        // actually changes, not on every keystroke.
+        refreshProposals(side);
       });
 
       host.appendChild(wrap);
@@ -235,6 +245,7 @@
       // is for — but nothing the check digits do not cover counts as confirmed
       // until a person says so. Until then the verdict is capped, which is the
       // four-eyes step made mechanical rather than remembered.
+      lastRead[side] = res;
       res.proposals.forEach((p) => applyProposal(side, p));
       renderProposals(side, res);
 
@@ -250,6 +261,20 @@
   function labelForField(key) {
     const d = FIELD_DEFS.filter((f) => f.key === key)[0];
     return d ? d.label : key;
+  }
+
+  /* Redraw only when a row's state has actually changed. The input event fires
+   * on every keystroke, and rebuilding the panel each time is both wasteful and
+   * a way to lose a button under the pointer mid-click. */
+  function refreshProposals(side) {
+    if (!lastRead[side]) return;
+    const sig = lastRead[side].proposals.map((p) => {
+      const node = $(`#${side}-${p.field}`);
+      return (provenance[side][p.field] || 'typed') +
+             (node && node.value === p.value ? ':same' : ':differs');
+    }).join('|');
+    if (sig === proposalSig[side]) return;
+    renderProposals(side, lastRead[side]);
   }
 
   function renderProposals(side, res) {
@@ -280,20 +305,40 @@
         p.validated ? 'check digit ✓' : 'unvalidated'));
       row.appendChild(main);
 
-      // Validated values need no confirmation; unvalidated ones are already in
-      // the form but do not count until someone accepts them. No provenance at
-      // all means the operator has since edited the field by hand, so it is
-      // their value and needs no confirmation from anyone.
+      // One control per row, and which one depends on where the field now
+      // stands relative to what was read:
+      //
+      //   mrz-validated    Verified   arithmetic already settled it
+      //   confirmed        Confirmed  a person has signed off on it
+      //   ocr-unconfirmed  Confirm    in the form, not yet counted
+      //   edited, differs  Restore    put the document's value back
+      //   edited, matches  Confirm    typed back to what was read
+      //
+      // The Restore case is the one that has to exist. An operator who clears
+      // or overtypes a field by accident has otherwise lost what the document
+      // said, with no way back short of scanning it again.
       const state = provenance[side][p.field];
+      const node = $(`#${side}-${p.field}`);
+      const differs = !node || node.value !== p.value;
+
       const btn = el('button', 'btn btn-small',
         state === 'mrz-validated' ? 'Verified'
         : state === 'confirmed'   ? 'Confirmed'
-        : !state                  ? 'Yours'
+        : state                   ? 'Confirm'
+        : differs                 ? 'Restore'
         : 'Confirm');
       btn.type = 'button';
-      btn.disabled = state !== 'ocr-unconfirmed';
+      btn.disabled = state === 'mrz-validated' || state === 'confirmed';
+      btn.title = differs && !state
+        ? 'Put back what the document said: ' + p.value.split('\n').join(' / ')
+        : '';
       btn.addEventListener('click', () => {
-        confirmProposal(side, p);
+        // Restoring hands the field back to the machine, so it returns to the
+        // machine's provenance — verified by check digit, or awaiting a person
+        // again. It does not arrive confirmed just because someone pressed a
+        // button to put it back.
+        if (!state && differs) applyProposal(side, p);
+        else confirmProposal(side, p);
         renderProposals(side, res);
       });
       row.appendChild(btn);
@@ -309,9 +354,16 @@
         res.mrz.corrections.map((c) => `line ${c.line} col ${c.pos} ${c.from}→${c.to}`)
           .join(', ') + '. The check digits then verified, which is what confirms the fix.'));
     }
+
+    proposalSig[side] = res.proposals.map((p) => {
+      const node = $(`#${side}-${p.field}`);
+      return (provenance[side][p.field] || 'typed') +
+             (node && node.value === p.value ? ':same' : ':differs');
+    }).join('|');
   }
 
-  /* Fill a field from what was read. Only used on the initial read. */
+  /* Fill a field from what was read — on the first read, and again whenever
+   * the operator asks for the document's value back. */
   function applyProposal(side, p) {
     const node = $(`#${side}-${p.field}`);
     if (!node) return;
@@ -328,7 +380,15 @@
    * must not have their correction thrown away, which is exactly what
    * re-applying the proposal would do. */
   function confirmProposal(side, p) {
-    if (!provenance[side][p.field]) return;   // already edited by hand: it is theirs
+    const state = provenance[side][p.field];
+    const node = $(`#${side}-${p.field}`);
+    const matchesRead = !!node && node.value === p.value;
+
+    // Awaiting confirmation is the ordinary case. A field the operator has
+    // since typed themselves can also be confirmed, but only while it still
+    // agrees with what the document said: confirming a value the document
+    // never carried would record a machine reading that never happened.
+    if (state !== 'ocr-unconfirmed' && !(state === undefined && matchesRead)) return;
     provenance[side][p.field] = 'confirmed';
     renderSourceChips(side);
   }
@@ -390,6 +450,8 @@
     $('#verdict').hidden = true;
     ['a', 'b'].forEach((side) => {
       provenance[side] = {};
+      lastRead[side] = null;
+      proposalSig[side] = '';
       renderSourceChips(side);
       const pr = $(`#${side}-proposals`); if (pr) pr.hidden = true;
       setStatus(side, '');

@@ -166,6 +166,12 @@ its own.
 A photograph of a document can be read to fill the form in. Where that sits is the whole
 design:
 
+The form stays the operator's. Any proposed value can be edited or cleared, and what the
+reader saw is kept beside the field so it can be restored — clearing a field by accident
+should not mean scanning the document again. Restoring returns the value to the reader's
+standing rather than a confirmed one, so the outcome stays capped until a person vouches
+for it.
+
 **It takes no part in the decision.** OCR proposes values; a person accepts them; the engine
 scores what the person left in the fields. `engine.js` does not reference the reader, does
 not know it exists, and returns identical output whether or not it is loaded — asserted by a
