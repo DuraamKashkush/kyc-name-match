@@ -135,6 +135,44 @@ var TEST_SUITE = (function () {
        'if these ever stop colliding, the LEX-2 rule is no longer load-bearing');
   });
 
+  /* ── The ambiguous Latin digraph ──────────────────────────────────────── */
+
+  group('Latin ch — the one digraph that does not say what it is');
+
+  function score(a, b) {
+    return K.compare({ fullName: a }, { fullName: b }, { today: TODAY }).nameScore;
+  }
+
+  /* sh is ش and ש. kh is خ. ch is neither reliably: /x/ in Hebrew- and
+   * German-influenced spelling, sh in French-influenced spelling. It is read as
+   * /x/ and carried as uncertain so both readings land. */
+  test('ch reads as /x/ — the Hebrew and German convention', function () {
+    gte(score('Chalil', 'خليل'), 85, 'Chalil/خليل');
+    gte(score('Chaled', 'خالد'), 85, 'Chaled/خالد');
+    gte(score('Chaim', 'חיים'), 85, 'Chaim/חיים');
+    gte(score('Baruch', 'ברוך'), 85, 'Baruch/ברוך');
+  });
+  test('ch still reaches sh — the French convention', function () {
+    gte(score('Rachid', 'رشيد'), 85, 'Rachid/رشيد');
+    gte(score('Cherif', 'شريف'), 85, 'Cherif/شريف');
+    gte(score('Chadi', 'شادي'), 85, 'Chadi/شادي');
+  });
+  test('ch and kh agree, being two spellings of one sound', function () {
+    gte(score('Chalil', 'Khalil'), 85, 'Chalil/Khalil');
+  });
+
+  /* The boundary. Uncertainty softens a plausible substitution; it must not
+   * make an implausible one plausible, and it must not leak onto sh or kh. */
+  test('sh and kh stay apart — neither is ambiguous', function () {
+    ok(score('Shalil', 'Khalil') < 85, 'Shalil/Khalil = ' + score('Shalil', 'Khalil'));
+    ok(score('Sharif', 'Kharif') < 85, 'Sharif/Kharif = ' + score('Sharif', 'Kharif'));
+  });
+  test('An uncertain ch does not match an unrelated letter', function () {
+    ok(score('Chalil', 'Talil') < 85, 'Chalil/Talil = ' + score('Chalil', 'Talil'));
+    ok(score('Chadi', 'Nadi') < 85, 'Chadi/Nadi = ' + score('Chadi', 'Nadi'));
+    ok(score('Chadi', 'خالد') < 85, 'Chadi/خالد = ' + score('Chadi', 'خالد'));
+  });
+
   /* ── Known-name lexicon ───────────────────────────────────────────────── */
 
   group('Known-name lexicon');

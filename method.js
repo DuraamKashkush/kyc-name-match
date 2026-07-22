@@ -122,9 +122,28 @@ var METHOD_PROSE = [
 
 '<p>Hebrew has no letters for several Arabic consonants, so Israeli orthography marks them by ',
 'adding a geresh: <bdi>ג׳</bdi> is j, <bdi>ר׳</bdi> is gh, <bdi>ת׳</bdi> is th, <bdi>ד׳</bdi> ',
-'is dh, <bdi>צ׳</bdi> is ch. It looks like punctuation and is not — treating it as a diacritic ',
+'is dh, <bdi>צ׳</bdi> is ch as in <em>church</em>. It looks like punctuation and is not — ',
+'treating it as a diacritic ',
 'and stripping it collapses each of those onto the wrong sound. It is read before single ',
 'letters, the same way <em>kh</em> is read before <em>k</em> in the Latin mapper.</p>',
+
+'<h3>Latin ch does not say which sound it is</h3>',
+
+'<p><em>sh</em> is <bdi>ش</bdi> and <bdi>ש</bdi>. <em>kh</em> is <bdi>خ</bdi>. Neither is in ',
+'any doubt. <em>ch</em> is, and it is the one Latin digraph that genuinely is: in Hebrew- ',
+'and German-influenced spelling it is /x/ — Chaim <bdi>חיים</bdi>, Baruch <bdi>ברוך</bdi>, ',
+'Chalil <bdi>خليل</bdi> — while in French-influenced spelling, which is how a great many ',
+'Arabic names first reached Latin script, it is sh: Rachid <bdi>رشيد</bdi>, Cherif ',
+'<bdi>شريف</bdi>, Aicha <bdi>عائشة</bdi>. Nothing in the string says which convention wrote ',
+'it.</p>',
+
+'<p>So it is not filed with <em>sh</em>. It is read as /x/, with <bdi>ح خ ه</bdi> and ',
+'<bdi>ח ה</bdi>, and marked <strong>uncertain</strong> — the same treatment as a word-final ',
+'Hebrew <bdi>ה</bdi> below, and for the same reason. An uncertain letter is cheap against ',
+'the classes it plausibly stood for, so Chalil still meets <bdi>شادي</bdi>-style sheen ',
+'spellings at close range. It is deliberately not made cheap against <em>everything</em>: ',
+'uncertainty about which letter was written must not turn an unrelated letter into a match. ',
+'And because <em>sh</em> and <em>kh</em> carry none of this, Shalil and Khalil stay apart.</p>',
 
 '<h3>A final ה could be either of two Arabic letters</h3>',
 

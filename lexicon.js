@@ -34,7 +34,7 @@ const CLS = {
   Z: 'Z',   // z, dh       ذ ز ظ  ז
   T: 'T',   // t           ت ط  ט ת
   S: 'S',   // s, th, ts   س ص ث  ס צ
-  X: 'X',   // sh, ch      ش  ש
+  X: 'X',   // sh          ش  ש
   W: 'W',   // w, long u/o و  ו       weak
   Y: 'Y',   // y, long i/e ي  י       weak
   A: 'A',   // vowel, hamza, ayin  ا ء ع  א ע   weak
@@ -47,6 +47,17 @@ const CLS = {
  * transliteration — علي becomes "Ali", not "Aali" — so they are weak too. */
 const WEAK = new Set([CLS.A, CLS.W, CLS.Y]);
 
+/* Latin digraphs whose sound depends on whose spelling convention wrote them.
+ * "ch" is the only real one: it is /x/ in Hebrew- and German-influenced
+ * spelling (Chaim חיים, Baruch ברוך, Chalil خليل) and /ʃ/ in French-influenced
+ * spelling, which is how a great many Arabic names reached Latin script
+ * (Rachid رشيد, Cherif شريف, Aicha عائشة). It is filed under H, the /x/
+ * reading, and marked uncertain so it stays cheap against ش as well.
+ *
+ * "sh" and "kh" are NOT in here. They are unambiguous, and leaving them out is
+ * what stops Shalil and Khalil collapsing into each other. */
+const LATIN_UNCERTAIN = new Set(['ch']);
+
 /* Pairs that are not the same class but are a routine transliteration slip.
  * Charged at half the cost of an unrelated substitution. */
 const NEAR_CLASSES = [
@@ -56,7 +67,7 @@ const NEAR_CLASSES = [
   [CLS.D, CLS.Z, 'ض is written d or dh — Ramadan, Ramadhan'],
   [CLS.B, CLS.F, 'Hebrew ב is b or v, פ is p or f'],
   [CLS.X, CLS.S, 'Hebrew ש is sh or s'],
-  [CLS.X, CLS.H, 'ch is read as sh or as kh'],
+  [CLS.X, CLS.H, 'Latin ch is /x/ in one convention and sh in another'],
   [CLS.J, CLS.G, 'j, g and gh overlap across conventions'],
   [CLS.K, CLS.G, 'ق and غ are both written q or gh'],
   [CLS.W, CLS.F, 'v is written with و or with ف'],
@@ -164,7 +175,7 @@ const HEBREW_DIGRAPHS = {
 const LATIN_DIGRAPHS = {
   'kh': CLS.H,
   'sh': CLS.X,
-  'ch': CLS.X,
+  'ch': CLS.H,
   'th': CLS.S,
   'dh': CLS.Z,
   'gh': CLS.G,
@@ -339,7 +350,7 @@ function canonicalLabel(id) {
 /* Rendered on the Method page directly from the tables above, so the
  * documentation cannot drift away from what the engine actually does. */
 const EQUIVALENCE_DISPLAY = [
-  { cls: 'H', members: 'ح خ ه · ח ה · h, kh', note: 'all collapse to h in Latin' },
+  { cls: 'H', members: 'ح خ ه · ח ה · h, kh, ch', note: 'all collapse to h in Latin' },
   { cls: 'T', members: 'ت ط · ט ת · t',       note: 'emphatic and plain t' },
   { cls: 'S', members: 'س ص ث · ס צ · s, th', note: 'th is written s or t' },
   { cls: 'K', members: 'ق ك · ק כ · k, q, c', note: 'q and k are interchangeable' },
@@ -347,7 +358,7 @@ const EQUIVALENCE_DISPLAY = [
   { cls: 'Z', members: 'ذ ز ظ · ז · z, dh',   note: 'Ramadan, Ramadhan' },
   { cls: 'B', members: 'ب پ · ב · b, p',      note: 'Arabic has no p' },
   { cls: 'F', members: 'ف · פ · f, v, ph',    note: 'Arabic has no v' },
-  { cls: 'X', members: 'ش · ש · sh, ch',      note: 'sh and ch overlap' },
+  { cls: 'X', members: 'ش · ש · sh',          note: 'sheen' },
   { cls: 'A', members: 'ا ء ع ة ى · א ע · vowels', note: 'weak — always dropped' },
   { cls: 'W', members: 'و · ו · w, o, u',     note: 'weak — vowel or consonant' },
   { cls: 'Y', members: 'ي · י · y, i, e',     note: 'weak — vowel or consonant' },
@@ -357,7 +368,7 @@ const EQUIVALENCE_DISPLAY = [
  * a plain <script> tag and picks the globals up off window. */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    CLS, WEAK, NEAR_CLASSES, NEAR_LOOKUP, ARABIC_MAP, ARABIC_DIACRITICS,
+    CLS, WEAK, LATIN_UNCERTAIN, NEAR_CLASSES, NEAR_LOOKUP, ARABIC_MAP, ARABIC_DIACRITICS,
     HEBREW_MAP, HEBREW_DIACRITICS, HEBREW_DIGRAPHS,
     LATIN_DIGRAPHS, LATIN_MAP, LATIN_FOLD,
     VOWEL_GROUPS, ARTICLE_HYPHENATED, ARTICLE_PLAIN, ARTICLE_ASSIMILATED,

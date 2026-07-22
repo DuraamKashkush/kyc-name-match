@@ -95,6 +95,18 @@ const RULES = {
       'Classes that are not identical but are a routine transliteration slip, such as ' +
       'th for both ث and ت. Charged half of an unrelated substitution.',
   },
+  'LAT-1': {
+    name: 'Ambiguous Latin digraph',
+    description:
+      'Latin "ch" does not say which sound it stands for. In Hebrew- and German-influenced ' +
+      'spelling it is /x/ — Chaim חיים, Baruch ברוך, Chalil خليل — and in French-influenced ' +
+      'spelling, which is how a great many Arabic names reached Latin script, it is sh: ' +
+      'Rachid رشيد, Cherif شريف. It is read as /x/ and marked uncertain, so it stays cheap ' +
+      'against ش and ש as well. The softening applies only where the two classes were ' +
+      'already a plausible slip: uncertainty about which letter was written does not make ' +
+      'an unrelated letter a match. Note that "sh" and "kh" are not ambiguous and get none ' +
+      'of this, which is what keeps Shalil and Khalil apart.',
+  },
   'WEAK-1': {
     name: 'Weak letter added or dropped',
     description:

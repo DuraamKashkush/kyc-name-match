@@ -24,6 +24,7 @@ var KYC = (function () {
     ? require('./lexicon.js') : null;
   var CLS_              = L ? L.CLS : CLS;
   var WEAK_             = L ? L.WEAK : WEAK;
+  var LATIN_UNCERTAIN_  = L ? L.LATIN_UNCERTAIN : LATIN_UNCERTAIN;
   var NEAR_LOOKUP_      = L ? L.NEAR_LOOKUP : NEAR_LOOKUP;
   var ARABIC_MAP_       = L ? L.ARABIC_MAP : ARABIC_MAP;
   var ARABIC_DIA_       = L ? L.ARABIC_DIACRITICS : ARABIC_DIACRITICS;
@@ -58,8 +59,10 @@ var KYC = (function () {
    * document, so cross-document comparisons that returned REFER under 1.1.0 can
    * return MATCH here. 1.3.0 adds the Israeli exception (NUM-4): an ID card and
    * a driving licence share one identifier, so their numbers are compared after
-   * all, and a pair that returned MATCH under 1.2.0 can refer here. */
-  var VERSION = '1.3.0';
+   * all, and a pair that returned MATCH under 1.2.0 can refer here. 1.4.0
+   * rereads Latin "ch" as /x/ rather than sh and carries it as an uncertain
+   * letter, which moves the score of any name spelled with one. */
+  var VERSION = '1.4.0';
 
   /* ── Edit costs ────────────────────────────────────────────────────────
    *
@@ -202,7 +205,9 @@ var KYC = (function () {
       while (i < t.length) {
         var two = t.substr(i, 2);
         if (Object.prototype.hasOwnProperty.call(LATIN_DIGRAPHS_, two)) {
-          codes.push({ c: LATIN_DIGRAPHS_[two], weak: false });
+          // Most digraphs say exactly one thing. "ch" does not — see
+          // LATIN_UNCERTAIN — so it is carried as an uncertain letter.
+          codes.push({ c: LATIN_DIGRAPHS_[two], weak: LATIN_UNCERTAIN_.has(two) });
           i += 2;
           continue;
         }
@@ -280,9 +285,19 @@ var KYC = (function () {
 
   /* ── Weighted edit distance over class codes ───────────────────────────── */
 
-  function substitutionCost(x, y) {
+  function substitutionCost(x, y, uncertain) {
     if (x === y) return { cost: COST.SAME, rule: 'CLS-1' };
-    if (NEAR_LOOKUP_.has(x + y)) return { cost: COST.NEAR_SUB, rule: 'CLS-2' };
+    if (NEAR_LOOKUP_.has(x + y)) {
+      // A letter that is uncertain in this instance — Latin "ch", which is /x/
+      // in one spelling convention and sh in another — is cheap against the
+      // classes it plausibly stood for. It is deliberately NOT made cheap
+      // against everything: uncertainty softens a plausible substitution, it
+      // does not make an implausible one plausible, so an unrelated pair below
+      // still costs full price however uncertain either side is.
+      return uncertain
+        ? { cost: COST.WEAK_SUB, rule: 'LAT-1' }
+        : { cost: COST.NEAR_SUB, rule: 'CLS-2' };
+    }
     if (WEAK_.has(x) && WEAK_.has(y)) return { cost: COST.WEAK_SUB, rule: 'WEAK-1' };
     return { cost: COST.UNRELATED_SUB, rule: 'SKEL-3' };
   }
@@ -318,7 +333,8 @@ var KYC = (function () {
 
     for (i = 1; i <= n; i++) {
       for (j = 1; j <= m; j++) {
-        var sub = d[i - 1][j - 1] + substitutionCost(s1[i - 1], s2[j - 1]).cost;
+        var sub = d[i - 1][j - 1] +
+          substitutionCost(s1[i - 1], s2[j - 1], u1(i - 1) || u2(j - 1)).cost;
         var del = d[i - 1][j] + indelCost(s1[i - 1], u1(i - 1)).cost;
         var ins = d[i][j - 1] + indelCost(s2[j - 1], u2(j - 1)).cost;
         var best = Math.min(sub, del, ins);
@@ -333,7 +349,7 @@ var KYC = (function () {
     while (i > 0 || j > 0) {
       var o = (i > 0 && j > 0) ? op[i][j] : (i > 0 ? 'del' : 'ins');
       if (o === 'sub') {
-        var sc = substitutionCost(s1[i - 1], s2[j - 1]);
+        var sc = substitutionCost(s1[i - 1], s2[j - 1], u1(i - 1) || u2(j - 1));
         if (sc.cost > 0) { rules[sc.rule] = true; notes.push(s1[i - 1] + '/' + s2[j - 1]); }
         else if (s1[i - 1] === s2[j - 1]) { rules['CLS-1'] = true; }
         i--; j--;

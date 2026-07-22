@@ -73,6 +73,15 @@ tokenise → normalise → particles → skeleton → compare → align → aggr
                                           which can only LOWER the verdict
 ```
 
+**Latin `ch`.** `sh` is ش and ש. `kh` is خ. Neither is in doubt. `ch` is: in Hebrew- and
+German-influenced spelling it is /x/ — Chaim חיים, Baruch ברוך, Chalil خليل — and in
+French-influenced spelling, which is how a great many Arabic names first reached Latin
+script, it is sh: Rachid رشيد, Cherif شريف. Nothing in the string says which. So it is filed
+with خ rather than with ش, and marked *uncertain*, which keeps it cheap against ش too. The
+softening applies only where the classes were already a plausible slip — uncertainty about
+which letter was written must not turn an unrelated letter into a match — and `sh` and `kh`
+get none of it, which is what keeps Shalil and Khalil apart.
+
 **Particles.** Strip the definite article — including the assimilated forms, since الشريف is
 written *Ash-Sharif* as often as *Al-Sharif*. Remove patronymic markers (*bin*, *ibn*,
 *bint*). Join compound names: **عبد is half of a name, not a particle** — عبد الرحمن is one
