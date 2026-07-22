@@ -203,7 +203,8 @@ const RULES = {
     description:
       'The Israeli identity number carries a published check digit over the first eight ' +
       'digits, weighted 1,2,1,2,1,2,1,2 with products above nine reduced by nine, summing ' +
-      'to a multiple of ten. Verifiable arithmetic, not a format guess.',
+      'to a multiple of ten. Verifiable arithmetic, not a format guess. Applies to the ' +
+      'Israeli driving licence as well, which carries the same number — see NUM-4.',
   },
   'FMT-1': {
     name: 'Document number format',
@@ -260,6 +261,19 @@ const RULES = {
       'follows from their being different, and the comparison rests on the other fields. ' +
       'Capping here would fire on every cross-document check, and an alarm that always ' +
       'sounds tells a reviewer nothing.',
+  },
+  'NUM-4': {
+    name: 'Shared identifier scheme',
+    description:
+      'Israel issues the driving licence against the identity number of its holder and ' +
+      'prints that number as the licence number, so an ID card and a driving licence for ' +
+      'one person cite the same nine digits. These two classes of document therefore do ' +
+      'share an identifier namespace and their numbers are compared rather than set aside ' +
+      'under NUM-3 — a disagreement between them is a real discrepancy. Deliberately ' +
+      'narrow: it is a fact about one country, gated on both records being Israeli and on ' +
+      'exactly this pair of document types. An Israeli passport carries its own number and ' +
+      'is not part of this, and the two documents still expire on their own schedules, so ' +
+      'EXP-4 continues to apply to the dates.',
   },
   'TYPE-1': {
     name: 'Document type',

@@ -56,8 +56,10 @@ var KYC = (function () {
    * engine must not be expected to reproduce under this one. 1.2.0 stops
    * capping the verdict when the two records describe different classes of
    * document, so cross-document comparisons that returned REFER under 1.1.0 can
-   * return MATCH here. */
-  var VERSION = '1.2.0';
+   * return MATCH here. 1.3.0 adds the Israeli exception (NUM-4): an ID card and
+   * a driving licence share one identifier, so their numbers are compared after
+   * all, and a pair that returned MATCH under 1.2.0 can refer here. */
+  var VERSION = '1.3.0';
 
   /* ── Edit costs ────────────────────────────────────────────────────────
    *
@@ -823,17 +825,50 @@ var KYC = (function () {
     return sum % 10 === 0;
   }
 
+  /* Israel issues the driving licence against the holder's identity number and
+   * prints that number as the licence number, so an ID card and a driving
+   * licence belonging to one person cite the same nine digits. Those two
+   * classes of document therefore DO share an identifier namespace, which is
+   * the exception to NUM-3 — and the identity number's check digit can be
+   * verified on either of them.
+   *
+   * Deliberately narrow. It is a fact about one country's documents, not a
+   * general principle, so it is gated on both records being Israeli and on
+   * exactly this pair of document types. An Israeli passport carries its own
+   * number and is not part of this. */
+  function carriesIsraeliIdNumber(rec) {
+    return rec.country === 'IL' &&
+           (rec.docType === 'national_id' || rec.docType === 'drivers_license');
+  }
+
+  function sharedIdentifierScheme(a, b) {
+    return a.docType !== b.docType &&
+           carriesIsraeliIdNumber(a) && carriesIsraeliIdNumber(b);
+  }
+
   function checkDocNumber(a, b) {
     var out = [];
     var na = (a.docNumber || '').toUpperCase().replace(/\s/g, '');
     var nb = (b.docNumber || '').toUpperCase().replace(/\s/g, '');
+    var shared = sharedIdentifierScheme(a, b);
 
     if (!na || !nb) {
       out.push(field('Document number', a.docNumber, b.docNumber, 'info', 'Not compared',
         ['MISS-1'], 'A document number is missing from one of the records.', 'REFER'));
     } else if (na === nb) {
       out.push(field('Document number', a.docNumber, b.docNumber, 'ok', 'Agrees',
-        ['NUM-1'], 'Both records cite the same document number.', null));
+        shared ? ['NUM-1', 'NUM-4'] : ['NUM-1'],
+        shared
+          ? 'Both records cite the same number. An Israeli driving licence carries the ' +
+            'identity number of its holder, so an ID card and a licence for one person ' +
+            'agree here even though they are different documents.'
+          : 'Both records cite the same document number.', null));
+    } else if (shared) {
+      out.push(field('Document number', a.docNumber, b.docNumber, 'warn', 'Differs',
+        ['NUM-2', 'NUM-4'],
+        'An Israeli driving licence carries the identity number of its holder, so these ' +
+        'two documents should cite the same nine digits. They do not, which is a real ' +
+        'discrepancy rather than two unrelated identifiers.', 'REFER'));
     } else if (a.docType !== b.docType) {
       // A passport number and an ID card number are identifiers from different
       // namespaces. Comparing them is a category error, not a mismatch, and
@@ -858,7 +893,7 @@ var KYC = (function () {
       var side = pair[0], rec = pair[1];
       if (!rec.docNumber) return;
 
-      if (rec.country === 'IL' && rec.docType === 'national_id') {
+      if (carriesIsraeliIdNumber(rec)) {
         var valid = israeliIdValid(rec.docNumber);
         if (valid === null) {
           out.push(field('ID check digit (' + side + ')', rec.docNumber, '', 'warn',

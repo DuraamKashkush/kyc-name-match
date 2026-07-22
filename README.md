@@ -105,6 +105,14 @@ points, it is a condition that stops the check. Date of birth distinguishes a ge
 discrepancy from a keying error — `1994-03-07` against `1994-07-03` is a day/month
 transposition and says so.
 
+One local exception. Israel issues the driving licence against the identity number of its
+holder and prints that number as the licence number, so an Israeli ID card and an Israeli
+driving licence for one person cite **the same nine digits**. Those two do share an
+identifier namespace: their numbers are compared, a disagreement between them is a real
+discrepancy, and the identity check digit is verified on the licence as readily as on the
+card. Gated on both records being Israeli and on exactly that pair — a passport carries its
+own number, and the two documents still expire on their own schedules.
+
 A check may also decline to conclude anything. Where the records describe **different
 classes of document** — a passport against an ID card, which is the ordinary case in
 verification rather than the exception — the two numbers are identifiers from different

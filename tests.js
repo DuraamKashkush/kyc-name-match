@@ -458,6 +458,77 @@ var TEST_SUITE = (function () {
     ok(res.hardStops.some(function (h) { return h.rule === 'EXP-1'; }), 'EXP-1 must still cap');
   });
 
+  /* Israel prints the holder's identity number on the driving licence, so those
+   * two documents DO share an identifier where two classes normally would not.
+   * The exception has to stay narrow, which is what most of these pin down. */
+  test('An Israeli ID and driving licence are compared on their number', function () {
+    var res = K.compare(
+      rec({ fullName: 'Mohammad Al-Sayed', country: 'IL', docType: 'national_id',
+            docNumber: '310256789', expiry: '2031-05-14' }),
+      rec({ fullName: 'Mohammad Al-Sayed', country: 'IL', docType: 'drivers_license',
+            docNumber: '310256789', expiry: '2028-09-30' }),
+      { today: TODAY });
+    eq(res.verdict, 'MATCH');
+    var num = res.checks.filter(function (c) { return c.field === 'Document number'; })[0];
+    eq(num.statusLabel, 'Agrees', 'the licence carries the identity number');
+    ok(num.rules.indexOf('NUM-4') >= 0, 'must cite NUM-4');
+  });
+  test('Israeli ID and licence numbers that disagree are a real discrepancy', function () {
+    var res = K.compare(
+      rec({ fullName: 'Mohammad Al-Sayed', country: 'IL', docType: 'national_id',
+            docNumber: '310256789', expiry: '2031-05-14' }),
+      rec({ fullName: 'Mohammad Al-Sayed', country: 'IL', docType: 'drivers_license',
+            docNumber: '318765432', expiry: '2028-09-30' }),
+      { today: TODAY });
+    eq(res.verdict, 'REFER', 'these should have cited the same nine digits');
+    ok(res.hardStops.some(function (h) { return h.rule === 'NUM-2'; }), 'NUM-2 must cap');
+  });
+  test('The licence number is check-digit verified, being the identity number', function () {
+    var res = K.compare(
+      rec({ fullName: 'Mohammad Al-Sayed', country: 'IL', docType: 'drivers_license',
+            docNumber: '310256789' }),
+      rec({ fullName: 'Mohammad Al-Sayed', country: 'IL', docType: 'drivers_license',
+            docNumber: '310256789' }),
+      { today: TODAY });
+    var chk = res.checks.filter(function (c) { return /check digit/i.test(c.field); });
+    ok(chk.length > 0, 'ID-CHK must run on a driving licence');
+    eq(chk[0].statusLabel, 'Valid');
+  });
+  test('The exception does not reach the Israeli passport', function () {
+    var res = K.compare(
+      rec({ fullName: 'Mohammad Al-Sayed', country: 'IL', docType: 'national_id',
+            docNumber: '310256789', expiry: '2031-05-14' }),
+      rec({ fullName: 'Mohammad Al-Sayed', country: 'IL', docType: 'passport',
+            docNumber: 'M1234567', expiry: '2029-08-22' }),
+      { today: TODAY });
+    eq(res.verdict, 'MATCH', 'a passport carries its own number');
+    var num = res.checks.filter(function (c) { return c.field === 'Document number'; })[0];
+    eq(num.statusLabel, 'Not comparable');
+  });
+  test('The exception does not leave Israel', function () {
+    var res = K.compare(
+      rec({ fullName: 'Mohammad Al-Sayed', country: 'JO', docType: 'national_id',
+            docNumber: '310256789', expiry: '2031-05-14' }),
+      rec({ fullName: 'Mohammad Al-Sayed', country: 'JO', docType: 'drivers_license',
+            docNumber: 'DL8842317', expiry: '2028-09-30' }),
+      { today: TODAY });
+    var num = res.checks.filter(function (c) { return c.field === 'Document number'; })[0];
+    eq(num.statusLabel, 'Not comparable', 'the scheme is a fact about Israel only');
+  });
+  test('A shared number does not make the expiry dates comparable', function () {
+    // The two documents carry one identifier but run on separate renewal cycles,
+    // so NUM-4 must not drag EXP-4 along with it.
+    var res = K.compare(
+      rec({ fullName: 'Mohammad Al-Sayed', country: 'IL', docType: 'national_id',
+            docNumber: '310256789', expiry: '2031-05-14' }),
+      rec({ fullName: 'Mohammad Al-Sayed', country: 'IL', docType: 'drivers_license',
+            docNumber: '310256789', expiry: '2028-09-30' }),
+      { today: TODAY });
+    var exp = res.checks.filter(function (c) { return c.field === 'Expiry'; })[0];
+    eq(exp.statusLabel, 'Not comparable');
+    ok(exp.rules.indexOf('EXP-4') >= 0, 'must still cite EXP-4');
+  });
+
   test('Checks can only lower a verdict, never raise it', function () {
     var res = K.compare(
       rec({ fullName: 'Mohammad Al-Sayed' }),

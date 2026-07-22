@@ -78,6 +78,16 @@ var METHOD_PROSE = [
 'condition that stops the check. Blending everything into a single number would be both ',
 'less realistic and harder to defend.</p>',
 
+'<p>One exception, and it is a local one. Israel issues the driving licence against the ',
+'identity number of its holder and prints that number as the licence number, so an Israeli ',
+'ID card and an Israeli driving licence for one person cite <em>the same nine digits</em>. ',
+'Those two do share an identifier namespace, so their numbers are compared after all and a ',
+'disagreement between them is a real discrepancy — and the identity number check digit can ',
+'be verified on the licence as readily as on the card. The rule is gated on both records ',
+'being Israeli and on exactly that pair of document types: an Israeli passport carries its ',
+'own number and is not part of it, and the two documents still expire on their own ',
+'schedules, so their dates remain incomparable.</p>',
+
 '<p>They can also decline to say anything. Where the two records describe <em>different ',
 'classes of document</em> — a passport against an ID card, which is the ordinary case in ',
 'verification rather than the exception — the two document numbers are identifiers from ',
