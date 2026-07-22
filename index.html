@@ -4,170 +4,163 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>Arabic Name Matching for KYC</title>
+<title>Name matching for KYC</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<header class="masthead">
-  <div class="wrap">
-    <!-- The page introduces itself in the grammar of the document it reads.
-         Decorative only, so it is hidden from assistive technology. -->
-    <div class="mrz-band" aria-hidden="true"><span>P&lt;UTOKYC&lt;NAME&lt;MATCH&lt;&lt;ARABIC&lt;HEBREW&lt;LATIN<span class="fill">&lt;&lt;&lt;&lt;</span></span><span>RULE&lt;BASED&lt;&lt;EVERY&lt;SCORE&lt;NAMES&lt;ITS&lt;RULE<span class="fill">&lt;&lt;&lt;&lt;&lt;&lt;</span></span></div>
-
-    <h1>Arabic name matching for KYC</h1>
-    <p class="lede">
-      Compare two identity records across Arabic, Hebrew and Latin script and get a finding
-      you can defend. <strong>Every point awarded or docked names the rule that produced
-      it</strong> — press any rule to read it.
-    </p>
-
-    <div class="masthead-meta">
-      <span class="badge">Synthetic data only</span>
-      <button type="button" class="btn btn-small" data-open="modal-method">How it works</button>
-      <button type="button" class="btn btn-small" data-open="modal-privacy">Where your data goes</button>
-      <a class="link-btn" href="tests.html">Run the test suite</a>
+<nav class="nav">
+  <div class="nav-inner">
+    <span class="nav-brand">Name matching for KYC</span>
+    <div class="nav-links">
+      <button type="button" data-open="sheet-method">How it works</button>
+      <a href="tests.html">Tests</a>
     </div>
   </div>
+</nav>
+
+<header class="hero">
+  <span class="pill">Synthetic data only</span>
+  <h1>Two records.<br>One defensible answer.</h1>
+  <p>Compare identity records across Arabic, Hebrew and Latin script.
+     Every point awarded or docked names the rule behind it.</p>
 </header>
 
-<main class="wrap">
+<main>
 
-  <!-- ── Sample cases ────────────────────────────────────────────────────── -->
-  <section class="block">
-    <div class="block-head">
-      <span class="eyebrow">Sample cases</span>
-      <span class="muted-sm">Synthetic, and each one shows a single behaviour</span>
-    </div>
-    <div class="block-body">
-      <div class="sample-buttons" id="sample-buttons"><!-- built by app.js --></div>
-      <p class="sample-blurb" id="sample-blurb"></p>
-    </div>
-  </section>
+  <!-- Sample cases: a segmented picker, with a one-line caption for the choice. -->
+  <div class="segmented" id="sample-buttons" role="group" aria-label="Sample cases"></div>
+  <p class="caption" id="sample-blurb"></p>
 
-  <!-- ── The two records ─────────────────────────────────────────────────── -->
   <form id="records-form" autocomplete="off">
     <div class="records">
 
-      <fieldset class="record" data-record="a">
-        <legend>
-          <div class="record-head">
-            <span class="record-tag">Record A</span>
-            <span class="record-name">Identity document</span>
+      <section class="card" data-record="a">
+        <div class="card-head">
+          <div>
+            <h2>Identity document</h2>
+            <span class="card-sub">Record A</span>
           </div>
-        </legend>
-        <div class="fields" data-fields="a"><!-- built by app.js --></div>
-      </fieldset>
+          <div class="card-tools">
+            <label class="chip-btn">Scan
+              <input type="file" accept="image/*" id="a-image" hidden>
+            </label>
+            <button type="button" class="chip-btn" data-specimen="a">Specimen</button>
+          </div>
+        </div>
+        <div class="capture-status" id="a-ocr-status" role="status"></div>
+        <div class="proposals" id="a-proposals" hidden></div>
+        <div class="rows" data-fields="a"></div>
+      </section>
 
-      <fieldset class="record" data-record="b">
-        <legend>
-          <div class="record-head">
-            <span class="record-tag">Record B</span>
-            <span class="record-name">System record</span>
+      <section class="card" data-record="b">
+        <div class="card-head">
+          <div>
+            <h2>System record</h2>
+            <span class="card-sub">Record B</span>
           </div>
-        </legend>
-        <div class="fields" data-fields="b"><!-- built by app.js --></div>
-      </fieldset>
+          <div class="card-tools">
+            <label class="chip-btn">Scan
+              <input type="file" accept="image/*" id="b-image" hidden>
+            </label>
+            <button type="button" class="chip-btn" data-specimen="b">Specimen</button>
+          </div>
+        </div>
+        <div class="capture-status" id="b-ocr-status" role="status"></div>
+        <div class="proposals" id="b-proposals" hidden></div>
+        <div class="rows" data-fields="b"></div>
+      </section>
 
     </div>
 
-    <div class="runbar">
-      <details class="thresholds">
-        <summary>Decision thresholds</summary>
-        <p class="muted">
-          The name score sets the provisional finding. The field checks below it can only
-          lower that finding, never raise it. Both thresholds are recorded in the case note,
-          so anyone can reproduce the run.
-        </p>
-        <label class="slider">
-          <span>Match at or above</span>
-          <input type="range" id="th-match" min="50" max="100" step="1" value="85">
-          <output id="th-match-out">85</output>
-        </label>
-        <label class="slider">
-          <span>Refer at or above</span>
-          <input type="range" id="th-refer" min="20" max="99" step="1" value="60">
-          <output id="th-refer-out">60</output>
-        </label>
-        <button type="button" class="link-btn" id="th-reset">Reset to defaults</button>
-      </details>
-
-      <div class="run-actions">
-        <button type="button" class="btn" id="clear-all">Clear</button>
-        <button type="submit" class="btn btn-primary" id="run-check">Run comparison</button>
-      </div>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary" id="run-check">Compare</button>
+      <button type="button" class="btn btn-quiet" id="clear-all">Clear</button>
+      <button type="button" class="btn btn-quiet" data-open="sheet-thresholds">Thresholds</button>
     </div>
   </form>
 
-  <!-- ── The finding ─────────────────────────────────────────────────────── -->
-  <section id="verdict" hidden aria-live="polite"><!-- built by app.js --></section>
+  <section id="verdict" hidden aria-live="polite"></section>
 
 </main>
 
-<footer class="site-footer">
-  <div class="wrap">
-    <p>
-      Every name, document number and address here is invented. Built from public sources:
-      FATF guidance, ICAO Doc 9303, and published registry formats.
-    </p>
-    <p class="muted-sm">
-      <a href="tests.html">Test suite</a> ·
-      <a href="https://github.com/DuraamKashkush/kyc-name-match">Source</a> ·
-      <span id="engine-version-footer"></span>
-    </p>
-  </div>
+<footer class="foot">
+  <p>Every name, number and address here is invented.</p>
+  <p class="foot-links">
+    <button type="button" data-open="sheet-method">How it works</button>
+    <button type="button" data-open="sheet-privacy">Privacy</button>
+    <a href="tests.html">Tests</a>
+    <a href="https://github.com/DuraamKashkush/kyc-name-match">Source</a>
+    <span id="engine-version-footer"></span>
+  </p>
 </footer>
 
-<!-- ── Modals ────────────────────────────────────────────────────────────── -->
+<!-- ── Sheets ────────────────────────────────────────────────────────────── -->
 
-<dialog id="modal-method">
-  <div class="modal-head">
+<dialog id="sheet-method" class="sheet sheet-wide">
+  <div class="sheet-head">
     <h2>How it works</h2>
-    <button type="button" class="modal-close" data-close aria-label="Close">✕</button>
+    <button type="button" class="sheet-close" data-close aria-label="Close">&#10005;</button>
   </div>
-  <div class="modal-body"><div id="method-body"><!-- built by app.js --></div></div>
+  <div class="sheet-body"><div id="method-body"></div></div>
 </dialog>
 
-<dialog id="modal-note">
-  <div class="modal-head">
+<dialog id="sheet-note" class="sheet">
+  <div class="sheet-head">
     <h2>Case note</h2>
-    <button type="button" class="modal-close" data-close aria-label="Close">✕</button>
+    <button type="button" class="sheet-close" data-close aria-label="Close">&#10005;</button>
   </div>
-  <div class="modal-body">
-    <p class="muted">
-      The same finding as prose, for pasting into a case management system. This is the
-      work-product — a decision is only useful if it can be handed to someone else.
-    </p>
+  <div class="sheet-body">
     <div class="note-actions">
-      <button type="button" class="btn btn-small" id="copy-note">Copy to clipboard</button>
+      <button type="button" class="btn btn-small" id="copy-note">Copy</button>
       <span class="copy-status" id="copy-status" role="status"></span>
     </div>
-    <textarea id="note-text" rows="22" readonly spellcheck="false"></textarea>
+    <textarea id="note-text" rows="20" readonly spellcheck="false"></textarea>
   </div>
 </dialog>
 
-<dialog id="modal-privacy">
-  <div class="modal-head">
-    <h2>Where your data goes</h2>
-    <button type="button" class="modal-close" data-close aria-label="Close">✕</button>
+<dialog id="sheet-thresholds" class="sheet">
+  <div class="sheet-head">
+    <h2>Thresholds</h2>
+    <button type="button" class="sheet-close" data-close aria-label="Close">&#10005;</button>
   </div>
-  <div class="modal-body">
+  <div class="sheet-body">
+    <label class="slider">
+      <span>Match at or above</span>
+      <input type="range" id="th-match" min="50" max="100" step="1" value="85">
+      <output id="th-match-out">85</output>
+    </label>
+    <label class="slider">
+      <span>Refer at or above</span>
+      <input type="range" id="th-refer" min="20" max="99" step="1" value="60">
+      <output id="th-refer-out">60</output>
+    </label>
+    <p class="sheet-note">The name score sets the provisional finding. Field checks can only
+      lower it, never raise it. Both values are recorded in the case note.</p>
+    <button type="button" class="btn btn-small" id="th-reset">Reset to defaults</button>
+  </div>
+</dialog>
+
+<dialog id="sheet-privacy" class="sheet">
+  <div class="sheet-head">
+    <h2>Privacy</h2>
+    <button type="button" class="sheet-close" data-close aria-label="Close">&#10005;</button>
+  </div>
+  <div class="sheet-body">
     <div class="method-prose">
-      <p><strong>Nowhere.</strong> There is no backend, no database and no account. Everything
-      you type is compared in this tab and is gone when you close it.</p>
-      <p>Reading a document image happens here too — the picture is decoded into a canvas in
-      your browser and never uploaded. The recogniser that reads it is served from this same
-      site rather than a third party, and only downloads when you actually ask to read an
-      image.</p>
-      <p>The one plain exception: this page is hosted on GitHub Pages, which sees the request
-      for the page itself, as any web host would.</p>
-      <p class="muted">Use synthetic data regardless. This is a demonstration, not a system of
-      record.</p>
+      <p><strong>Nothing you type leaves this tab.</strong> There is no backend, no database
+      and no account.</p>
+      <p>Document images are decoded in your browser and never uploaded. The recogniser is
+      served from this same site, not a third party, and only downloads when you ask to read
+      an image.</p>
+      <p>The one plain exception: the page itself is hosted on GitHub Pages, which sees the
+      request for it, as any web host would.</p>
+      <p class="muted">Use synthetic data regardless. This is a demonstration, not a system
+      of record.</p>
     </div>
   </div>
 </dialog>
 
-<!-- Anchored explanation for any rule id, positioned by app.js -->
 <div id="rule-pop" hidden role="tooltip"></div>
 
 <script src="lexicon.js"></script>

@@ -12,26 +12,35 @@
   const $  = (sel, root) => (root || document).querySelector(sel);
   const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
 
+  function el(tag, cls, text) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  /* Mixed-script text goes inside <bdi> so an Arabic token cannot reorder the
+     Latin around it. Without this the breakdown scrambles. */
+  function bdi(text) {
+    const n = document.createElement('bdi');
+    n.textContent = text;
+    return n;
+  }
+
   const FIELD_DEFS = [
-    { key: 'fullName',  label: 'Full name',        type: 'text',   dir: true,
+    { key: 'fullName',  label: 'Name',       type: 'text',   dir: true,
       placeholder: 'As printed on the record' },
-    { key: 'dob',       label: 'Date of birth',    type: 'date' },
-    { key: 'docType',   label: 'Document type',    type: 'select', options: DOC_TYPES },
-    { key: 'docNumber', label: 'Document number',  type: 'text',
-      placeholder: 'e.g. 310256789' },
-    { key: 'expiry',    label: 'Expiry date',      type: 'date' },
-    { key: 'country',   label: 'Issuing country',  type: 'select', options: COUNTRIES },
-    { key: 'address',   label: 'Address',          type: 'text',   dir: true,
+    { key: 'dob',       label: 'Born',       type: 'date' },
+    { key: 'docType',   label: 'Document',   type: 'select', options: DOC_TYPES },
+    { key: 'docNumber', label: 'Number',     type: 'text',   placeholder: '310256789' },
+    { key: 'expiry',    label: 'Expires',    type: 'date' },
+    { key: 'country',   label: 'Issued by',  type: 'select', options: COUNTRIES },
+    { key: 'address',   label: 'Address',    type: 'text',   dir: true,
       placeholder: 'Street, city' },
-    { key: 'mrz',       label: 'Machine-readable zone (optional)', type: 'textarea',
-      rows: 3, mono: true,
-      // Deliberately not a realistic MRZ: a specimen zone as placeholder text
-      // reads as data the record already has, which is exactly the wrong thing
-      // to show on an empty field.
-      placeholder: 'Optional — paste the MRZ lines',
-      hint: 'The lines at the foot of a passport or the back of an ID card. They carry ' +
-            'ICAO 9303 check digits, so the document number can be verified rather than ' +
-            'only format-checked.' },
+    // The zone is long, fixed-width and optional, so it folds away rather than
+    // holding six lines of height open on a form nobody has filled in yet.
+    { key: 'mrz',       label: 'Machine-readable zone', type: 'mrz', rows: 3,
+      placeholder: 'Optional — paste the MRZ lines' },
   ];
 
   let lastResult = null;
@@ -40,7 +49,6 @@
    * are tracked; anything absent was typed, which is the default and needs no
    * disclosure. Editing a field by hand always returns it to 'typed'. */
   const provenance = { a: {}, b: {} };
-  const pendingProposals = { a: [], b: [] };
 
   /* ── Field construction ──────────────────────────────────────────────── */
 
@@ -50,56 +58,55 @@
 
     FIELD_DEFS.forEach((def) => {
       const id = `${side}-${def.key}`;
-      const wrap = document.createElement('div');
-      wrap.className = 'field';
+      let wrap, labelEl, input;
 
-      const label = document.createElement('label');
-      label.setAttribute('for', id);
-      label.textContent = def.label;
-      wrap.appendChild(label);
+      if (def.type === 'mrz') {
+        wrap = el('details', 'field field-mrz');
+        const summary = document.createElement('summary');
+        labelEl = el('span', 'field-label', def.label);
+        summary.appendChild(labelEl);
+        wrap.appendChild(summary);
 
-      let input;
-      if (def.type === 'select') {
-        input = document.createElement('select');
-        def.options.forEach((opt) => {
-          const o = document.createElement('option');
-          o.value = opt.value;
-          o.textContent = opt.label;
-          input.appendChild(o);
-        });
-      } else if (def.type === 'textarea') {
         input = document.createElement('textarea');
-        input.rows = def.rows || 3;
+        input.rows = def.rows;
         input.spellcheck = false;
-        // The MRZ is a fixed-width Latin format. Forcing LTR and monospace keeps
-        // the columns aligned even when the rest of the record is Arabic.
+        // A fixed-width Latin format. Pinning LTR keeps the columns aligned
+        // even when the rest of the record is Arabic, and no soft wrap keeps a
+        // 44-character line one line.
         input.dir = 'ltr';
-        // An MRZ line is a fixed 44 or 30 characters and means nothing rewrapped,
-        // so scroll it sideways rather than folding it.
         input.wrap = 'off';
-        if (def.mono) input.className = 'mono';
-        if (def.placeholder) input.placeholder = def.placeholder;
+        input.placeholder = def.placeholder;
+        wrap.appendChild(input);
       } else {
-        input = document.createElement('input');
-        input.type = def.type;
-        if (def.placeholder) input.placeholder = def.placeholder;
-        // Names and addresses may be Arabic, Hebrew or Latin. dir="auto" lets the
-        // browser pick direction from the first strong character in the value, so
-        // right-to-left text is not rendered backwards.
-        if (def.dir) input.dir = 'auto';
+        wrap = el('div', 'field');
+        labelEl = el('label', 'field-label', def.label);
+        labelEl.setAttribute('for', id);
+        wrap.appendChild(labelEl);
+
+        if (def.type === 'select') {
+          input = document.createElement('select');
+          def.options.forEach((opt) => {
+            const o = document.createElement('option');
+            o.value = opt.value;
+            o.textContent = opt.label;
+            input.appendChild(o);
+          });
+        } else {
+          input = document.createElement('input');
+          input.type = def.type;
+          if (def.placeholder) input.placeholder = def.placeholder;
+          // Names and addresses may be Arabic, Hebrew or Latin. dir="auto" lets
+          // the browser pick direction from the first strong character, so
+          // right-to-left text is not rendered backwards.
+          if (def.dir) input.dir = 'auto';
+        }
+        wrap.appendChild(input);
       }
+
       input.id = id;
       input.name = id;
       input.dataset.side = side;
       input.dataset.key = def.key;
-      wrap.appendChild(input);
-
-      if (def.hint) {
-        const hint = document.createElement('p');
-        hint.className = 'field-hint';
-        hint.textContent = def.hint;
-        wrap.appendChild(hint);
-      }
 
       // Any manual edit clears machine-read provenance for that field: once a
       // human has changed it, it is their value, not the scanner's.
@@ -122,51 +129,32 @@
    */
 
   const PROV_CHIP = {
-    'mrz-validated': { text: 'MRZ ✓', cls: 'ok',
+    'mrz-validated': { text: 'MRZ', cls: 'ok',
       title: 'Read from the machine-readable zone; check digits verify.' },
-    'ocr-unconfirmed': { text: 'OCR ?', cls: 'warn',
+    'ocr-unconfirmed': { text: 'unconfirmed', cls: 'warn',
       title: 'Read from the printed page. Nothing validates it — confirm before relying on it.' },
-    'confirmed': { text: 'OCR ✓', cls: 'info',
+    'confirmed': { text: 'confirmed', cls: 'info',
       title: 'Read from the printed page and confirmed by you.' },
   };
 
   function renderSourceChips(side) {
     FIELD_DEFS.forEach((def) => {
-      const el = $(`#${side}-${def.key}`);
-      if (!el) return;
-      const label = el.parentElement.querySelector('label');
-      if (!label) return;
-      const existing = label.querySelector('.src-chip');
+      const input = $(`#${side}-${def.key}`);
+      if (!input) return;
+      const holder = input.closest('.field').querySelector('.field-label');
+      if (!holder) return;
+      const existing = holder.querySelector('.src-chip');
       if (existing) existing.remove();
 
       const state = provenance[side][def.key];
       if (!state || !PROV_CHIP[state]) return;
-      const chip = document.createElement('span');
-      chip.className = 'src-chip ' + PROV_CHIP[state].cls;
-      chip.textContent = PROV_CHIP[state].text;
+      const chip = el('span', 'src-chip ' + PROV_CHIP[state].cls, PROV_CHIP[state].text);
       chip.title = PROV_CHIP[state].title;
-      label.appendChild(chip);
+      holder.appendChild(chip);
     });
   }
 
-  function buildCapturePanel(side) {
-    const fieldset = $(`fieldset[data-record="${side}"]`);
-    const panel = document.createElement('div');
-    panel.className = 'capture';
-    panel.innerHTML =
-      '<div class="capture-actions">' +
-        '<label class="capture-btn">Read from document image' +
-          `<input type="file" accept="image/*" id="${side}-image" hidden>` +
-        '</label>' +
-        `<button type="button" class="link-btn" data-specimen="${side}">Try the specimen</button>` +
-      '</div>' +
-      `<p class="field-hint capture-note">Read here in your browser; the image is never ` +
-        `uploaded. Filling the form only — the reader takes no part in the decision.</p>` +
-      `<div class="capture-status" id="${side}-ocr-status" role="status"></div>` +
-      `<div class="proposals" id="${side}-proposals" hidden></div>`;
-
-    fieldset.insertBefore(panel, $(`[data-fields="${side}"]`));
-
+  function wireCapture(side) {
     $(`#${side}-image`).addEventListener('change', (e) => {
       if (e.target.files && e.target.files[0]) readImage(side, e.target.files[0]);
       e.target.value = '';
@@ -175,9 +163,9 @@
   }
 
   function setStatus(side, text, cls) {
-    const el = $(`#${side}-ocr-status`);
-    el.textContent = text || '';
-    el.className = 'capture-status' + (cls ? ' ' + cls : '');
+    const node = $(`#${side}-ocr-status`);
+    node.textContent = text || '';
+    node.className = 'capture-status' + (cls ? ' ' + cls : '');
   }
 
   /* The bundled schematic, fed through exactly the same path as a photograph.
@@ -205,7 +193,7 @@
       return;
     }
     $(`#${side}-proposals`).hidden = true;
-    setStatus(side, 'Starting the reader… (first run loads it, which takes a moment)');
+    setStatus(side, 'Starting the reader — the first run has to load it.');
 
     OCR.readDocument(file, {
       onProgress: (status, p) => {
@@ -213,7 +201,6 @@
       },
     }).then((res) => {
       if (!res.ok) { setStatus(side, res.error, 'bad'); return; }
-      pendingProposals[side] = res.proposals;
 
       // Everything read goes straight into the form, because that is what this
       // is for — but nothing the check digits do not cover counts as confirmed
@@ -225,15 +212,15 @@
       const val = res.proposals.filter((p) => p.validated).length;
       const pending = res.proposals.length - val;
       setStatus(side,
-        `Read ${res.proposals.length} field(s); ${val} confirmed by check digit` +
-        (pending ? `, ${pending} awaiting your confirmation.` : '.'),
+        `Read ${res.proposals.length} field(s) · ${val} verified by check digit` +
+        (pending ? ` · ${pending} awaiting you` : ''),
         pending ? 'warn' : 'ok');
     }).catch((e) => setStatus(side, 'Could not read that image: ' + e.message, 'bad'));
   }
 
   function labelForField(key) {
     const d = FIELD_DEFS.filter((f) => f.key === key)[0];
-    return d ? d.label.replace(' (optional)', '') : key;
+    return d ? d.label : key;
   }
 
   function renderProposals(side, res) {
@@ -241,13 +228,10 @@
     host.innerHTML = '';
     host.hidden = false;
 
-    const head = document.createElement('div');
-    head.className = 'proposals-head';
-    head.innerHTML = '<strong>Read from the document</strong>';
-    const acceptAll = document.createElement('button');
+    const head = el('div', 'proposals-head');
+    head.appendChild(el('span', '', 'Read from the document'));
+    const acceptAll = el('button', 'btn btn-small', 'Confirm all');
     acceptAll.type = 'button';
-    acceptAll.className = 'btn btn-small';
-    acceptAll.textContent = 'Confirm all';
     acceptAll.addEventListener('click', () => {
       res.proposals.forEach((p) => confirmProposal(side, p));
       renderProposals(side, res);
@@ -256,44 +240,28 @@
     host.appendChild(head);
 
     res.proposals.forEach((p) => {
-      const row = document.createElement('div');
-      row.className = 'proposal' + (p.validated ? ' validated' : '');
+      const row = el('div', 'proposal' + (p.validated ? ' validated' : ''));
 
-      const main = document.createElement('div');
-      main.className = 'proposal-main';
-      const name = document.createElement('span');
-      name.className = 'proposal-field';
-      name.textContent = labelForField(p.field);
-      main.appendChild(name);
-
-      const val = document.createElement('bdi');
+      const main = el('div', 'proposal-main');
+      main.appendChild(el('span', 'proposal-field', labelForField(p.field)));
+      const val = bdi(p.field === 'mrz' ? p.value.split('\n')[0] + '…' : p.value);
       val.className = 'proposal-value';
-      val.textContent = p.field === 'mrz' ? p.value.split('\n')[0] + '…' : p.value;
       main.appendChild(val);
-
-      const tag = document.createElement('span');
-      tag.className = 'src-chip ' + (p.validated ? 'ok' : 'warn');
-      tag.textContent = p.validated ? 'check digit ✓' : 'unvalidated';
-      main.appendChild(tag);
+      main.appendChild(el('span', 'src-chip ' + (p.validated ? 'ok' : 'warn'),
+        p.validated ? 'check digit ✓' : 'unvalidated'));
       row.appendChild(main);
 
-      const note = document.createElement('p');
-      note.className = 'proposal-note';
-      note.textContent = p.note;
-      row.appendChild(note);
-
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'btn btn-small';
       // Validated values need no confirmation; unvalidated ones are already in
-      // the form but do not count until someone accepts them.
-      // No provenance at all means the operator has since edited the field by
-      // hand, so it is their value and needs no confirmation from anyone.
+      // the form but do not count until someone accepts them. No provenance at
+      // all means the operator has since edited the field by hand, so it is
+      // their value and needs no confirmation from anyone.
       const state = provenance[side][p.field];
-      btn.textContent = state === 'mrz-validated' ? 'Verified'
-                      : state === 'confirmed' ? 'Confirmed'
-                      : !state ? 'Edited by you'
-                      : 'Confirm';
+      const btn = el('button', 'btn btn-small',
+        state === 'mrz-validated' ? 'Verified'
+        : state === 'confirmed'   ? 'Confirmed'
+        : !state                  ? 'Yours'
+        : 'Confirm');
+      btn.type = 'button';
       btn.disabled = state !== 'ocr-unconfirmed';
       btn.addEventListener('click', () => {
         confirmProposal(side, p);
@@ -301,29 +269,28 @@
       });
       row.appendChild(btn);
 
+      row.appendChild(el('p', 'proposal-note', p.note));
       host.appendChild(row);
     });
 
     if (res.mrz && res.mrz.corrections && res.mrz.corrections.length) {
-      const fix = document.createElement('p');
-      fix.className = 'proposal-note corrections';
-      fix.textContent =
+      host.appendChild(el('p', 'proposal-note corrections',
         'Corrected ' + res.mrz.corrections.length + ' character(s) whose position in the ' +
         'zone requires a digit or a letter: ' +
         res.mrz.corrections.map((c) => `line ${c.line} col ${c.pos} ${c.from}→${c.to}`)
-          .join(', ') + '. The check digits then verified, which is what confirms the fix.';
-      host.appendChild(fix);
+          .join(', ') + '. The check digits then verified, which is what confirms the fix.'));
     }
   }
 
   /* Fill a field from what was read. Only used on the initial read. */
   function applyProposal(side, p) {
-    const el = $(`#${side}-${p.field}`);
-    if (!el) return;
-    el.value = p.value;
+    const node = $(`#${side}-${p.field}`);
+    if (!node) return;
+    node.value = p.value;
     // Values the check digits cover are confirmed by arithmetic; everything
     // else is in the form but does not count until a person says so.
     provenance[side][p.field] = p.validated ? 'mrz-validated' : 'ocr-unconfirmed';
+    if (p.field === 'mrz') { const d = node.closest('details'); if (d) d.open = true; }
     renderSourceChips(side);
   }
 
@@ -350,8 +317,8 @@
     // any more.
     provenance[side] = {};
     FIELD_DEFS.forEach((def) => {
-      const el = $(`#${side}-${def.key}`);
-      el.value = rec[def.key] != null ? rec[def.key] : '';
+      const node = $(`#${side}-${def.key}`);
+      node.value = rec[def.key] != null ? rec[def.key] : '';
     });
   }
 
@@ -362,13 +329,10 @@
     host.innerHTML = '';
 
     Object.keys(SAMPLE_CASES).forEach((key) => {
-      const c = SAMPLE_CASES[key];
-      const btn = document.createElement('button');
+      const btn = el('button', null, SAMPLE_CASES[key].label);
       btn.type = 'button';
-      btn.className = 'sample-btn';
       btn.dataset.case = key;
       btn.setAttribute('aria-pressed', 'false');
-      btn.textContent = c.label;
       btn.addEventListener('click', () => loadCase(key));
       host.appendChild(btn);
     });
@@ -381,7 +345,7 @@
     writeRecord('a', c.a);
     writeRecord('b', c.b);
 
-    $$('.sample-btn').forEach((b) => {
+    $$('#sample-buttons button').forEach((b) => {
       b.setAttribute('aria-pressed', String(b.dataset.case === key));
     });
     ['a', 'b'].forEach(renderSourceChips);
@@ -391,34 +355,32 @@
   function clearAll() {
     writeRecord('a', EMPTY_RECORD);
     writeRecord('b', EMPTY_RECORD);
-    $$('.sample-btn').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+    $$('#sample-buttons button').forEach((b) => b.setAttribute('aria-pressed', 'false'));
     $('#sample-blurb').textContent = '';
     lastResult = null;
     $('#verdict').hidden = true;
     ['a', 'b'].forEach((side) => {
       provenance[side] = {};
-      pendingProposals[side] = [];
       renderSourceChips(side);
       const pr = $(`#${side}-proposals`); if (pr) pr.hidden = true;
       setStatus(side, '');
     });
   }
 
-  /* ── Modals ──────────────────────────────────────────────────────────── */
+  /* ── Sheets ──────────────────────────────────────────────────────────── */
 
-  function openModal(id) {
+  function openSheet(id) {
     const d = document.getElementById(id);
     if (d && typeof d.showModal === 'function') d.showModal();
   }
 
-  function wireModals() {
+  function wireSheets() {
     $$('[data-open]').forEach((b) =>
-      b.addEventListener('click', () => openModal(b.dataset.open)));
+      b.addEventListener('click', () => openSheet(b.dataset.open)));
     $$('dialog').forEach((d) => {
-      d.querySelectorAll('[data-close]').forEach((b) =>
-        b.addEventListener('click', () => d.close()));
-      // Clicking the backdrop closes it. The dialog element reports clicks on
-      // the backdrop as clicks on itself, so compare against the target.
+      $$('[data-close]', d).forEach((b) => b.addEventListener('click', () => d.close()));
+      // Clicking the backdrop closes it. The dialog element reports backdrop
+      // clicks as clicks on itself, so compare against the target.
       d.addEventListener('click', (e) => { if (e.target === d) d.close(); });
     });
   }
@@ -434,8 +396,7 @@
   let popAnchor = null;
 
   function hideRulePop() {
-    const pop = $('#rule-pop');
-    pop.hidden = true;
+    $('#rule-pop').hidden = true;
     if (popAnchor) popAnchor.setAttribute('aria-expanded', 'false');
     popAnchor = null;
   }
@@ -446,16 +407,9 @@
     const pop = $('#rule-pop');
 
     pop.innerHTML = '';
-    const idEl = document.createElement('span');
-    idEl.className = 'pop-id';
-    idEl.textContent = id;
-    const nameEl = document.createElement('span');
-    nameEl.className = 'pop-name';
-    nameEl.textContent = rule.name;
-    const descEl = document.createElement('span');
-    descEl.className = 'pop-desc';
-    descEl.textContent = rule.description;
-    pop.append(idEl, nameEl, descEl);
+    pop.append(el('span', 'pop-id', id),
+               el('span', 'pop-name', rule.name),
+               el('span', 'pop-desc', rule.description));
 
     pop.hidden = false;
     const r = anchor.getBoundingClientRect();
@@ -495,19 +449,14 @@
   const DEFAULT_THRESHOLDS = { match: 85, refer: 60 };
 
   function readThresholds() {
-    return {
-      match: Number($('#th-match').value),
-      refer: Number($('#th-refer').value),
-    };
+    return { match: Number($('#th-match').value), refer: Number($('#th-refer').value) };
   }
 
   function syncThresholdOutputs() {
     const t = readThresholds();
     // The refer threshold can never sit above the match threshold, or the bands
     // become incoherent. Clamp rather than letting the user build a broken scale.
-    if (t.refer >= t.match) {
-      $('#th-refer').value = Math.max(20, t.match - 1);
-    }
+    if (t.refer >= t.match) $('#th-refer').value = Math.max(20, t.match - 1);
     $('#th-match-out').textContent = $('#th-match').value;
     $('#th-refer-out').textContent = $('#th-refer').value;
   }
@@ -525,8 +474,7 @@
     const b = readRecord('b');
 
     if (!a.fullName && !b.fullName) {
-      $('#sample-blurb').textContent =
-        'Enter a name in both records, or load one of the sample cases above.';
+      $('#sample-blurb').textContent = 'Enter a name in both records, or load a sample above.';
       return;
     }
 
@@ -540,15 +488,13 @@
     $('#verdict').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  /* ── Rendering: verdict ──────────────────────────────────────────────── */
+  /* ── Rendering: the finding ──────────────────────────────────────────── */
 
   const BANNER_CLASS = { MATCH: 'match', REFER: 'refer', NO_MATCH: 'nomatch' };
-  const BANNER_TEXT  = { MATCH: 'MATCH', REFER: 'REFER', NO_MATCH: 'NO MATCH' };
+  const BANNER_TEXT  = { MATCH: 'Match', REFER: 'Refer', NO_MATCH: 'No match' };
 
   function ruleTag(id) {
-    const span = document.createElement('span');
-    span.className = 'rule-id';
-    span.textContent = id;
+    const span = el('span', 'rule-id', id);
     span.dataset.rule = id;
     span.setAttribute('role', 'button');
     span.setAttribute('tabindex', '0');
@@ -560,24 +506,22 @@
     return span;
   }
 
-  /* Mixed-script text goes inside <bdi> so an Arabic token cannot reorder the
-     Latin around it. Without this the breakdown table scrambles. */
-  function bdi(text) {
-    const el = document.createElement('bdi');
-    el.textContent = text;
-    return el;
+  /* English prose with quoted Arabic or Hebrew islands inside it. Pinning the
+     paragraph to LTR stops a reason that happens to BEGIN with an Arabic token
+     from flipping the entire sentence. */
+  function reasonLine(finding) {
+    const p = el('p', 'item-reason');
+    p.dir = 'ltr';
+    (finding.rules || []).forEach((id) => p.appendChild(ruleTag(id)));
+    p.appendChild(document.createTextNode(finding.reason));
+    return p;
   }
 
-  function reasonCell(finding) {
-    const td = document.createElement('td');
-    td.className = 'reason';
-    // English prose with quoted Arabic or Hebrew islands inside it. Pinning the
-    // paragraph to LTR stops a reason that happens to BEGIN with an Arabic token
-    // from flipping the entire sentence.
-    td.dir = 'ltr';
-    (finding.rules || []).forEach((id) => td.appendChild(ruleTag(id)));
-    td.appendChild(document.createTextNode(finding.reason));
-    return td;
+  function tokenCell(text, skeleton) {
+    const cell = el('span', 'tok');
+    cell.appendChild(bdi(text || '—'));
+    if (skeleton) cell.appendChild(el('i', null, skeleton));
+    return cell;
   }
 
   function renderVerdict(res) {
@@ -585,222 +529,136 @@
     outer.innerHTML = '';
     outer.hidden = false;
 
-    const host = document.createElement('div');
-    host.className = 'finding ' + BANNER_CLASS[res.verdict];
-    outer.appendChild(host);
+    const card = el('div', 'result ' + BANNER_CLASS[res.verdict]);
+    outer.appendChild(card);
 
-    /* The finding, stamped. */
-    const top = document.createElement('div');
-    top.className = 'finding-top';
+    /* The answer, and the number behind it. */
+    const hero = el('div', 'result-hero');
+    hero.appendChild(el('div', 'verdict-word', BANNER_TEXT[res.verdict]));
 
-    const stamp = document.createElement('div');
-    stamp.className = 'stamp';
-    stamp.textContent = BANNER_TEXT[res.verdict];
-    top.appendChild(stamp);
+    const score = el('div', 'score', String(res.nameScore));
+    score.appendChild(el('span', null, ' / 100'));
+    hero.appendChild(score);
+    hero.appendChild(el('div', 'score-label', 'Name score'));
 
-    const gist = document.createElement('div');
-    gist.className = 'finding-gist';
-
-    const score = document.createElement('div');
-    score.className = 'finding-score';
-    score.innerHTML = 'Name score <b>' + res.nameScore + '</b> / 100';
-    gist.appendChild(score);
-
-    // The bar plus the two thresholds it was judged against, so the decision is
-    // legible without reading the sentence underneath.
-    const meter = document.createElement('div');
-    meter.className = 'meter';
+    // The bar carries the two thresholds it was judged against, so which side
+    // of the line the score fell on is visible without reading the sentence.
+    const meter = el('div', 'meter');
     const bar = document.createElement('i');
     bar.style.width = Math.max(2, res.nameScore) + '%';
     meter.appendChild(bar);
-    [['refer', res.thresholds.refer], ['match', res.thresholds.match]].forEach(([label, at]) => {
+    [res.thresholds.refer, res.thresholds.match].forEach((at) => {
       const tick = document.createElement('u');
       tick.style.left = at + '%';
-      tick.dataset.label = label + ' ' + at;
-      tick.title = 'Threshold: ' + label + ' at ' + at;
+      tick.dataset.at = at;
       meter.appendChild(tick);
     });
-    gist.appendChild(meter);
+    hero.appendChild(meter);
 
-    const sub = document.createElement('p');
-    sub.className = 'finding-reason';
-    sub.textContent = res.verdictReason;
-    gist.appendChild(sub);
-    top.appendChild(gist);
+    hero.appendChild(el('p', 'result-reason', res.verdictReason));
 
-    const acts = document.createElement('div');
-    acts.className = 'finding-actions';
-    const noteBtn = document.createElement('button');
+    const acts = el('div', 'result-actions');
+    const noteBtn = el('button', 'btn btn-small', 'Case note');
     noteBtn.type = 'button';
-    noteBtn.className = 'btn btn-small';
-    noteBtn.textContent = 'Case note';
-    noteBtn.addEventListener('click', () => openModal('modal-note'));
+    noteBtn.addEventListener('click', () => openSheet('sheet-note'));
     acts.appendChild(noteBtn);
-    top.appendChild(acts);
+    hero.appendChild(acts);
 
-    host.appendChild(top);
+    card.appendChild(hero);
 
-    /* Hard stops */
+    /* Anything that capped the outcome comes first: it overrode the score. */
     if (res.hardStops.length) {
-      const block = document.createElement('div');
-      block.className = 'section-block';
-      const h = document.createElement('h2');
-      h.textContent = 'Conditions that capped the verdict';
-      block.appendChild(h);
-
-      const p = document.createElement('p');
-      p.className = 'muted';
-      p.textContent =
-        'These can only lower the outcome, never raise it. An expired document or a failed ' +
-        'check digit is a condition that stops the check, not a deduction from a score.';
-      block.appendChild(p);
+      const stops = el('div', 'group stops');
+      const head = el('div', 'group-head');
+      head.appendChild(el('h3', null, 'Capped the outcome'));
+      head.appendChild(el('span', null, 'these can only lower it'));
+      stops.appendChild(head);
 
       res.hardStops.forEach((hs) => {
-        const div = document.createElement('div');
-        div.className = 'hardstop' + (hs.cap === 'NO_MATCH' ? ' bad' : '');
-        div.appendChild(ruleTag(hs.rule));
-        div.appendChild(document.createTextNode(hs.reason));
-        block.appendChild(div);
+        const item = el('div', 'item' + (hs.cap === 'NO_MATCH' ? ' bad' : ''));
+        item.appendChild(reasonLine({ rules: [hs.rule], reason: hs.reason }));
+        stops.appendChild(item);
       });
-      host.appendChild(block);
+      card.appendChild(stops);
     }
 
-    /* Name breakdown */
-    const nameBlock = document.createElement('div');
-    nameBlock.className = 'section-block';
-    const nh = document.createElement('h2');
-    nh.textContent = 'Name comparison';
-    nameBlock.appendChild(nh);
+    /* Name comparison — the part this tool exists for, so it stays open. */
+    const nameGroup = el('div', 'group');
+    const nameHead = el('div', 'group-head');
+    nameHead.appendChild(el('h3', null, 'Name'));
+    nameHead.appendChild(el('span', null,
+      res.name.pairs.length + (res.name.pairs.length === 1 ? ' token' : ' tokens')));
+    nameGroup.appendChild(nameHead);
 
-    const np = document.createElement('p');
-    np.className = 'muted';
-    np.textContent =
-      'Tokens are matched independently of order, on their consonant skeleton rather than ' +
-      'their spelling. The skeleton is shown under each token.';
-    nameBlock.appendChild(np);
-
-    if (res.name.preprocessing.length) {
-      const pre = document.createElement('table');
-      pre.className = 'breakdown';
-      pre.innerHTML =
-        '<thead><tr><th>Preprocessing</th><th>Applied to</th></tr></thead>';
-      const pbody = document.createElement('tbody');
-      res.name.preprocessing.forEach((f) => {
-        const tr = document.createElement('tr');
-        const td1 = reasonCell(f);
-        tr.appendChild(td1);
-        const td2 = document.createElement('td');
-        td2.className = 'tok';
-        td2.appendChild(bdi(f.subject));
-        tr.appendChild(td2);
-        pbody.appendChild(tr);
-      });
-      pre.appendChild(pbody);
-      nameBlock.appendChild(pre);
-    }
-
-    const table = document.createElement('table');
-    table.className = 'breakdown';
-    table.innerHTML =
-      '<thead><tr><th>Record A</th><th>Record B</th><th>Role</th><th>Score</th>' +
-      '<th>Finding</th></tr></thead>';
-    const tbody = document.createElement('tbody');
+    res.name.preprocessing.forEach((f) => {
+      const item = el('div', 'item');
+      const top = el('div', 'item-top');
+      top.appendChild(tokenCell(f.subject));
+      item.appendChild(top);
+      item.appendChild(reasonLine(f));
+      nameGroup.appendChild(item);
+    });
 
     res.name.pairs.forEach((p) => {
-      const tr = document.createElement('tr');
+      const item = el('div', 'item');
 
-      const tdA = document.createElement('td');
-      tdA.className = 'tok';
-      tdA.appendChild(bdi(p.a || '—'));
-      if (p.aSkeleton) {
-        const s = document.createElement('span');
-        s.className = 'skel';
-        s.textContent = p.aSkeleton;
-        tdA.appendChild(s);
-      }
-      tr.appendChild(tdA);
+      const top = el('div', 'item-top');
+      const toks = el('div', 'pair-tokens');
+      toks.appendChild(tokenCell(p.a, p.aSkeleton));
+      toks.appendChild(el('span', 'arrow', '→'));
+      toks.appendChild(tokenCell(p.b, p.bSkeleton));
+      top.appendChild(toks);
 
-      const tdB = document.createElement('td');
-      tdB.className = 'tok';
-      tdB.appendChild(bdi(p.b || '—'));
-      if (p.bSkeleton) {
-        const s = document.createElement('span');
-        s.className = 'skel';
-        s.textContent = p.bSkeleton;
-        tdB.appendChild(s);
-      }
-      tr.appendChild(tdB);
+      const meta = el('div', 'item-meta');
+      meta.appendChild(el('span', 'role', p.role));
+      meta.appendChild(el('span', 'score-cell', p.score == null ? '—' : String(p.score)));
+      top.appendChild(meta);
+      item.appendChild(top);
 
-      const tdR = document.createElement('td');
-      tdR.className = 'muted';
-      tdR.textContent = p.role;
-      tr.appendChild(tdR);
-
-      const tdS = document.createElement('td');
-      tdS.className = 'score-cell';
-      tdS.textContent = p.score == null ? '—' : String(p.score);
-      tr.appendChild(tdS);
-
-      tr.appendChild(reasonCell(p));
-      tbody.appendChild(tr);
+      item.appendChild(reasonLine(p));
+      nameGroup.appendChild(item);
     });
+    card.appendChild(nameGroup);
 
-    table.appendChild(tbody);
-    nameBlock.appendChild(table);
-    host.appendChild(nameBlock);
-
-    /* Checklist on the other fields */
-    const checkBlock = document.createElement('div');
-    checkBlock.className = 'section-block';
-    const ch = document.createElement('h2');
-    ch.textContent = 'Field checks';
-    checkBlock.appendChild(ch);
-
-    const ctable = document.createElement('table');
-    ctable.className = 'breakdown';
-    ctable.innerHTML =
-      '<thead><tr><th>Field</th><th>Record A</th><th>Record B</th><th>Result</th>' +
-      '<th>Finding</th></tr></thead>';
-    const cbody = document.createElement('tbody');
+    /* Field checks fold: six rows of agreement is not what anyone opened this
+       page to read, but it has to stay one click away. */
+    const checks = el('details', 'group group-fold');
+    const summary = document.createElement('summary');
+    summary.appendChild(document.createTextNode('Field checks'));
+    // Counting what was flagged rather than what agreed: "agree" would be a
+    // stretch for a check whose result is Plausible or Not comparable.
+    const flagged = res.checks.filter((c) => c.status === 'warn' || c.status === 'bad').length;
+    summary.appendChild(el('span', 'sum',
+      res.checks.length + ' checks · ' + (flagged ? flagged + ' flagged' : 'none flagged')));
+    checks.appendChild(summary);
 
     res.checks.forEach((c) => {
-      const tr = document.createElement('tr');
+      const item = el('div', 'item');
 
-      const tdF = document.createElement('td');
-      tdF.textContent = c.field;
-      tr.appendChild(tdF);
+      const top = el('div', 'item-top');
+      const vals = el('div', 'vals');
+      vals.dir = 'ltr';
+      vals.appendChild(el('strong', null, c.field));
+      vals.appendChild(document.createTextNode(' '));
+      vals.appendChild(bdi(c.a || '—'));
+      vals.appendChild(el('span', 'arrow', '→'));
+      vals.appendChild(bdi(c.b || '—'));
+      top.appendChild(vals);
 
-      const tdA = document.createElement('td');
-      tdA.className = 'tok';
-      tdA.appendChild(bdi(c.a || '—'));
-      tr.appendChild(tdA);
+      const meta = el('div', 'item-meta');
+      meta.appendChild(el('span', 'flag ' + c.status, c.statusLabel));
+      top.appendChild(meta);
+      item.appendChild(top);
 
-      const tdB = document.createElement('td');
-      tdB.className = 'tok';
-      tdB.appendChild(bdi(c.b || '—'));
-      tr.appendChild(tdB);
-
-      const tdS = document.createElement('td');
-      tdS.className = 'flag ' + c.status;
-      tdS.textContent = c.statusLabel;
-      tr.appendChild(tdS);
-
-      tr.appendChild(reasonCell(c));
-      cbody.appendChild(tr);
+      item.appendChild(reasonLine(c));
+      checks.appendChild(item);
     });
+    card.appendChild(checks);
 
-    ctable.appendChild(cbody);
-    checkBlock.appendChild(ctable);
-    host.appendChild(checkBlock);
-
-    /* Reproducibility line — everything needed to run this again. */
-    const foot = document.createElement('p');
-    foot.className = 'repro';
-    foot.textContent =
-      `Engine ${res.engineVersion} · thresholds match \u2265 ${res.thresholds.match}, ` +
-      `refer \u2265 ${res.thresholds.refer} · evaluated ${res.evaluatedOn} · ` +
-      'the same inputs and thresholds always produce this same finding.';
-    host.appendChild(foot);
+    /* Everything needed to run this again and get the same answer. */
+    card.appendChild(el('p', 'repro',
+      `Engine ${res.engineVersion} · match ≥ ${res.thresholds.match}, ` +
+      `refer ≥ ${res.thresholds.refer} · ${res.evaluatedOn}`));
   }
 
   /* ── Rendering: case note ────────────────────────────────────────────── */
@@ -815,15 +673,15 @@
     navigator.clipboard.writeText(ta.value).then(
       () => { $('#copy-status').textContent = 'Copied.'; },
       () => {
-        // Clipboard API needs a secure context; opening the file directly from
-        // disk does not always qualify. Fall back to selecting the text.
+        // The clipboard API needs a secure context; opening the file straight
+        // from disk does not always qualify. Fall back to selecting the text.
         ta.select();
-        $('#copy-status').textContent = 'Select and copy manually (Ctrl+C).';
+        $('#copy-status').textContent = 'Select and copy (Ctrl+C).';
       }
     );
   }
 
-  /* ── Rendering: method page ──────────────────────────────────────────── */
+  /* ── Rendering: how it works ─────────────────────────────────────────── */
 
   function renderMethod() {
     const host = $('#method-body');
@@ -834,22 +692,17 @@
     const chips = $('#method-classes');
     if (chips) {
       EQUIVALENCE_DISPLAY.forEach((c) => {
-        const div = document.createElement('div');
-        div.className = 'class-chip';
-        const b = document.createElement('bdi');
+        const div = el('div', 'class-chip');
+        const b = bdi(c.members);
         // Isolation alone is not enough here. These strings list Arabic, then
         // Hebrew, then Latin, and <bdi> takes its direction from the first
-        // strong character — which is Arabic, flipping the whole line to RTL and
-        // displaying the three groups in reverse. Forcing LTR keeps them in the
-        // authored order while each Arabic run still renders right-to-left
+        // strong character — which is Arabic, flipping the whole line to RTL
+        // and showing the three groups in reverse. Forcing LTR keeps them in
+        // the authored order while each Arabic run still renders right-to-left
         // internally, which is what we want.
         b.dir = 'ltr';
-        b.textContent = c.members;
         div.appendChild(b);
-        const s = document.createElement('span');
-        s.className = 'cls';
-        s.textContent = 'class ' + c.cls + ' — ' + c.note;
-        div.appendChild(s);
+        div.appendChild(el('span', 'cls', 'class ' + c.cls + ' — ' + c.note));
         chips.appendChild(div);
       });
     }
@@ -857,17 +710,12 @@
     const rulesBody = $('#method-rules');
     if (rulesBody) {
       Object.keys(RULES).forEach((id) => {
-        const r = RULES[id];
         const tr = document.createElement('tr');
         const td1 = document.createElement('td');
         td1.appendChild(ruleTag(id));
         tr.appendChild(td1);
-        const td2 = document.createElement('td');
-        td2.textContent = r.name;
-        tr.appendChild(td2);
-        const td3 = document.createElement('td');
-        td3.textContent = r.description;
-        tr.appendChild(td3);
+        tr.appendChild(el('td', null, RULES[id].name));
+        tr.appendChild(el('td', null, RULES[id].description));
         rulesBody.appendChild(tr);
       });
     }
@@ -876,17 +724,16 @@
   /* ── Init ────────────────────────────────────────────────────────────── */
 
   function init() {
-    buildFields('a');
-    buildFields('b');
-    buildCapturePanel('a');
-    buildCapturePanel('b');
-    writeRecord('a', EMPTY_RECORD);
-    writeRecord('b', EMPTY_RECORD);
+    ['a', 'b'].forEach((side) => {
+      buildFields(side);
+      wireCapture(side);
+      writeRecord(side, EMPTY_RECORD);
+    });
     buildSampleButtons();
     renderMethod();
     resetThresholds();
 
-    wireModals();
+    wireSheets();
     wireRulePop();
 
     $('#records-form').addEventListener('submit', (e) => {

@@ -4,35 +4,28 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>Test suite — Arabic name matching for KYC</title>
+<title>Test suite — name matching for KYC</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<header class="masthead">
-  <div class="wrap">
-    <h1>Test suite</h1>
-    <p class="lede">
-      Assertions against <code>engine.js</code>, running in this page. No framework and no
-      build step — the same file runs under <code>node tests.js</code>.
-    </p>
-    <div class="masthead-meta">
-      <span class="badge">Half of these hold the engine back</span>
-      <a class="link-btn" href="index.html">Back to the tool</a>
-    </div>
+<nav class="nav">
+  <div class="nav-inner">
+    <span class="nav-brand">Test suite</span>
+    <div class="nav-links"><a href="index.html">Back to the tool</a></div>
   </div>
+</nav>
+
+<header class="hero">
+  <span class="pill">Half of these hold the engine back</span>
+  <h1>Every assertion,<br>run in this page.</h1>
+  <p>The same file runs under <code>node tests.js</code>. Much of the suite exists to stop the
+     engine matching two different people.</p>
 </header>
 
-<main class="wrap">
+<main>
   <div id="summary" class="test-summary">Running…</div>
-  <p class="muted" style="margin: 0 0 18px; max-width: 78ch">
-    An engine tuned to match aggressively across transliterations will happily match two
-    different people, and in a verification queue that failure is more serious than the false
-    mismatch this tool was built to fix. Much of the suite exists to prevent it.
-  </p>
-  <div class="block"><div class="block-body">
-    <table class="tests"><tbody id="results"></tbody></table>
-  </div></div>
+  <table class="tests"><tbody id="results"></tbody></table>
 </main>
 
 <script src="lexicon.js"></script>
