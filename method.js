@@ -78,6 +78,16 @@ var METHOD_PROSE = [
 'condition that stops the check. Blending everything into a single number would be both ',
 'less realistic and harder to defend.</p>',
 
+'<p>They can also decline to say anything. Where the two records describe <em>different ',
+'classes of document</em> — a passport against an ID card, which is the ordinary case in ',
+'verification rather than the exception — the two document numbers are identifiers from ',
+'different namespaces, and the expiry dates run on unrelated schedules. Neither is a ',
+'mismatch, so neither is held against the comparison. <strong>Absent evidence is not ',
+'adverse evidence.</strong> An alarm that fires on every cross-document check tells a ',
+'reviewer nothing, and a reviewer who learns to dismiss it will dismiss the one that ',
+'mattered. Within a single class of document a differing number still refers, and an ',
+'expired document still caps whatever else is true.</p>',
+
 '<h2>Sound classes</h2>',
 
 '<p>Letters that share a class are treated as the same sound and cost nothing to ',

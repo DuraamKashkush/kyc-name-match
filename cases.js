@@ -13,6 +13,9 @@
  *                  naive string comparison scores near zero and this engine matches
  *   dobswap        a data-entry error (07/03 vs 03/07) told apart from a real
  *                  date-of-birth discrepancy
+ *   crossdoc       one person, two different documents — the ordinary case, and
+ *                  the one the other five hid by carrying the same document
+ *                  number on both sides
  *   different      two records that look similar and are not the same person —
  *                  the false positive the engine has to refuse to make
  */
@@ -84,7 +87,7 @@ const SAMPLE_CASES = {
   },
 
   translit: {
-    label: 'Transliteration mismatch',
+    label: 'Transliteration',
     blurb:
       'Arabic passport against a Latin-script system record. Different spelling, different article, patronymic dropped — same person. Naive comparison scores this near zero.',
     a: {
@@ -134,7 +137,7 @@ const SAMPLE_CASES = {
   },
 
   arabhebrew: {
-    label: 'Arabic ID vs Hebrew record',
+    label: 'Arabic vs Hebrew',
     blurb:
       'An Israeli ID card is printed in Arabic and Hebrew; the bank keyed the Hebrew. No ' +
       'Latin anywhere in this comparison — the two scripts are matched directly against ' +
@@ -160,8 +163,35 @@ const SAMPLE_CASES = {
     },
   },
 
+  crossdoc: {
+    label: 'Passport vs ID',
+    blurb:
+      'One person, two documents. The numbers and expiry dates have nothing to do with ' +
+      'each other, and neither is held against the match — an identifier from a different ' +
+      'document is absent evidence, not adverse evidence.',
+    a: {
+      fullName: 'محمد أحمد السيد',
+      dob: '1994-03-07',
+      docType: 'passport',
+      docNumber: 'M1234567',
+      expiry: '2029-08-22',
+      country: 'IL',
+      address: 'أم الفحم',
+      mrz: 'P<ISRALSAYED<<MOHAMMAD<AHMAD<<<<<<<<<<<<<<<<\nM1234567<0ISR9403073M2908225<<<<<<<<<<<<<<06',
+    },
+    b: {
+      fullName: 'Mohammad Ahmad Al-Sayed',
+      dob: '1994-03-07',
+      docType: 'national_id',
+      docNumber: '310256789',
+      expiry: '2031-05-14',
+      country: 'IL',
+      address: 'Umm al-Fahm',
+    },
+  },
+
   different: {
-    label: 'Different person, similar name',
+    label: 'Different person',
     blurb:
       'Shared patronymic and a given name that collapses to the same consonants. Not the same person — and the system record is on an expired document.',
     a: {

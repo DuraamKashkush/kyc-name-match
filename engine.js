@@ -53,8 +53,11 @@ var KYC = (function () {
   /* Bumped whenever scoring behaviour changes. The case note records this, and
    * the reproducibility claim it makes is only true within one version — 1.1.0
    * scores some Hebrew pairs differently from 1.0.0, so a note from the older
-   * engine must not be expected to reproduce under this one. */
-  var VERSION = '1.1.0';
+   * engine must not be expected to reproduce under this one. 1.2.0 stops
+   * capping the verdict when the two records describe different classes of
+   * document, so cross-document comparisons that returned REFER under 1.1.0 can
+   * return MATCH here. */
+  var VERSION = '1.2.0';
 
   /* ── Edit costs ────────────────────────────────────────────────────────
    *
@@ -788,9 +791,18 @@ var KYC = (function () {
     }
 
     if (ea && eb && ea.iso !== eb.iso) {
+      // Two different classes of document have unrelated expiry dates. That is
+      // not a disagreement about one document, it is two documents — a fact the
+      // record already states. Reported, not held against the comparison.
+      if (a.docType !== b.docType) {
+        return field('Expiry', a.expiry, b.expiry, 'info', 'Not comparable', ['EXP-4'],
+          'The records describe different classes of document, which expire on their own ' +
+          'schedules. There is nothing here to compare, so this neither supports nor ' +
+          'undermines the match.', null);
+      }
       return field('Expiry', a.expiry, b.expiry, 'warn', 'Differs', ['EXP-2'],
-        'The records disagree about when the document expires, which usually means they ' +
-        'describe two different documents.', 'REFER');
+        'Both records describe the same class of document but disagree about when it ' +
+        'expires, which usually means they describe two different documents.', 'REFER');
     }
 
     return field('Expiry', a.expiry, b.expiry, 'ok', 'Valid', ['EXP-3'],
@@ -822,12 +834,23 @@ var KYC = (function () {
     } else if (na === nb) {
       out.push(field('Document number', a.docNumber, b.docNumber, 'ok', 'Agrees',
         ['NUM-1'], 'Both records cite the same document number.', null));
+    } else if (a.docType !== b.docType) {
+      // A passport number and an ID card number are identifiers from different
+      // namespaces. Comparing them is a category error, not a mismatch, and
+      // absent evidence must not be scored as adverse evidence: capping here
+      // would fire on every cross-document comparison, which is the ordinary
+      // case, and an alarm that always sounds tells a reviewer nothing.
+      out.push(field('Document number', a.docNumber, b.docNumber, 'info', 'Not comparable',
+        ['NUM-3'],
+        'The records describe different classes of document, so these are two unrelated ' +
+        'identifiers rather than two versions of one. Nothing follows from their being ' +
+        'different, and the comparison rests on the other fields.', null));
     } else {
       out.push(field('Document number', a.docNumber, b.docNumber, 'warn', 'Differs',
         ['NUM-2'],
-        'Different document numbers. This is legitimate where the records describe two ' +
-        'different documents belonging to one person — a passport against a national ID ' +
-        'card — so it refers rather than fails.', 'REFER'));
+        'Both records describe the same class of document but cite different numbers. ' +
+        'Two documents of one class for one person is possible — a renewal, a replacement ' +
+        '— so this refers rather than fails.', 'REFER'));
     }
 
     // Validation, per record, where a published scheme exists.

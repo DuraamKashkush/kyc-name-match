@@ -414,6 +414,50 @@ var TEST_SUITE = (function () {
     eq(res.verdict, 'REFER', 'capped');
     ok(res.hardStops.some(function (h) { return h.rule === 'EXP-1'; }), 'EXP-1 must cap');
   });
+  /* The ordinary KYC case: the customer presents one document, the file was
+   * built from another. Before 1.2.0 this always capped at REFER however well
+   * the person matched, which made the tool useless for the case it exists for
+   * — and every sample case hid it by carrying one document number on both
+   * sides. These four assertions exist to stop that coming back. */
+  test('Two different documents for one person can still reach MATCH', function () {
+    var res = K.compare(
+      rec({ fullName: 'Mohammad Al-Sayed', docType: 'passport',
+            docNumber: 'M1234567', expiry: '2029-08-22' }),
+      rec({ fullName: 'Mohammad Al-Sayed', docType: 'national_id',
+            docNumber: '310256789', expiry: '2031-05-14' }),
+      { today: TODAY });
+    eq(res.nameScore, 100, 'same person');
+    eq(res.verdict, 'MATCH', 'a different class of document must not cap');
+    ok(!res.hardStops.some(function (h) { return h.rule === 'NUM-2' || h.rule === 'EXP-2'; }),
+      'neither NUM-2 nor EXP-2 may fire across document types');
+  });
+  test('Across document types the number is reported as not comparable', function () {
+    var res = K.compare(
+      rec({ fullName: 'Mohammad Al-Sayed', docType: 'passport', docNumber: 'M1234567' }),
+      rec({ fullName: 'Mohammad Al-Sayed', docType: 'national_id', docNumber: '310256789' }),
+      { today: TODAY });
+    var num = res.checks.filter(function (c) { return c.field === 'Document number'; })[0];
+    eq(num.status, 'info', 'absent evidence is not adverse evidence');
+    ok(num.rules.indexOf('NUM-3') >= 0, 'must cite NUM-3');
+  });
+  test('Within one document type a differing number still caps', function () {
+    var res = K.compare(
+      rec({ fullName: 'Mohammad Al-Sayed', docType: 'passport', docNumber: 'M1234567' }),
+      rec({ fullName: 'Mohammad Al-Sayed', docType: 'passport', docNumber: 'K7781234' }),
+      { today: TODAY });
+    eq(res.verdict, 'REFER', 'two passports, two numbers');
+    ok(res.hardStops.some(function (h) { return h.rule === 'NUM-2'; }), 'NUM-2 must cap');
+  });
+  test('An expired document caps even across document types', function () {
+    var res = K.compare(
+      rec({ fullName: 'Mohammad Al-Sayed', docType: 'passport', expiry: '2029-08-22' }),
+      rec({ fullName: 'Mohammad Al-Sayed', docType: 'national_id',
+            docNumber: '310256789', expiry: '2024-02-10' }),
+      { today: TODAY });
+    eq(res.verdict, 'REFER', 'validity is not a comparison');
+    ok(res.hardStops.some(function (h) { return h.rule === 'EXP-1'; }), 'EXP-1 must still cap');
+  });
+
   test('Checks can only lower a verdict, never raise it', function () {
     var res = K.compare(
       rec({ fullName: 'Mohammad Al-Sayed' }),
@@ -741,7 +785,7 @@ var TEST_SUITE = (function () {
 
   /* ── End to end ───────────────────────────────────────────────────────── */
 
-  group('The four sample cases end to end');
+  group('The sample cases end to end');
 
   function sample(key) {
     var C = (typeof module !== 'undefined' && module.exports)
@@ -787,6 +831,13 @@ var TEST_SUITE = (function () {
     // The town has the same problem as the person and goes through the same engine.
     var addr = r.checks.filter(function (c) { return c.field === 'Address'; })[0];
     eq(addr.status, 'ok', 'أم الفحم vs אום אל-פחם: ' + addr.statusLabel);
+  });
+  test('Passport against ID card returns MATCH across two documents', function () {
+    var r = sample('crossdoc');
+    eq(r.verdict, 'MATCH', 'one person, two documents');
+    eq(r.nameScore, 100, 'name score');
+    var num = r.checks.filter(function (c) { return c.field === 'Document number'; })[0];
+    eq(num.statusLabel, 'Not comparable', 'M1234567 against 310256789');
   });
   test('Different person returns NO MATCH', function () {
     var r = sample('different');

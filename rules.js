@@ -191,6 +191,13 @@ const RULES = {
     name: 'Document within validity',
     description: 'The expiry date is in the future as at the evaluation date.',
   },
+  'EXP-4': {
+    name: 'Expiry dates not comparable',
+    description:
+      'The records describe different classes of document, which expire on their own ' +
+      'schedules. There is nothing to compare, so the difference neither supports nor ' +
+      'undermines the match. An expired document still caps the outcome under EXP-1.',
+  },
   'ID-CHK': {
     name: 'Israeli ID check digit',
     description:
@@ -242,8 +249,17 @@ const RULES = {
   'NUM-2': {
     name: 'Document numbers differ',
     description:
-      'Different document numbers. Legitimate where the records describe two different ' +
-      'documents belonging to one person, so this refers rather than fails.',
+      'Both records describe the same class of document but cite different numbers. One ' +
+      'person can hold two — a renewal, a replacement — so this refers rather than fails.',
+  },
+  'NUM-3': {
+    name: 'Document numbers not comparable',
+    description:
+      'The records describe different classes of document, so the two numbers are ' +
+      'identifiers from different namespaces rather than two versions of one. Nothing ' +
+      'follows from their being different, and the comparison rests on the other fields. ' +
+      'Capping here would fire on every cross-document check, and an alarm that always ' +
+      'sounds tells a reviewer nothing.',
   },
   'TYPE-1': {
     name: 'Document type',

@@ -34,7 +34,7 @@ That human has to know three things no string comparison knows:
 - The particles *al-* and *el-* are the definite article. They are not part of the surname,
   and one system will carry them while the next drops them.
 
-This tool encodes that knowledge as rules. Load the **Transliteration mismatch** sample and
+This tool encodes that knowledge as rules. Load the **Transliteration** sample and
 you can watch an Arabic passport match a Latin system record, with every step named.
 
 ## Why there is no model in the decision path
@@ -104,6 +104,15 @@ only lower the verdict, never raise it: an expired document is not worth minus f
 points, it is a condition that stops the check. Date of birth distinguishes a genuine
 discrepancy from a keying error — `1994-03-07` against `1994-07-03` is a day/month
 transposition and says so.
+
+A check may also decline to conclude anything. Where the records describe **different
+classes of document** — a passport against an ID card, which is the ordinary case in
+verification rather than the exception — the two numbers are identifiers from different
+namespaces and the expiry dates run on unrelated schedules. Neither difference is a
+mismatch, so neither is held against the comparison: absent evidence is not adverse
+evidence. An alarm that fires on every cross-document check tells a reviewer nothing, and a
+reviewer who learns to dismiss it will dismiss the one that mattered. Within one class of
+document a differing number still refers, and an expired document still caps regardless.
 
 **Machine-readable zone.** Optional, and the only field that can be verified rather than
 merely compared. The printed passport number carries no check digit — it lives in the MRZ —
