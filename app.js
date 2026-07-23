@@ -12,20 +12,9 @@
   const $  = (sel, root) => (root || document).querySelector(sel);
   const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
 
-  function el(tag, cls, text) {
-    const n = document.createElement(tag);
-    if (cls) n.className = cls;
-    if (text != null) n.textContent = text;
-    return n;
-  }
-
-  /* Mixed-script text goes inside <bdi> so an Arabic token cannot reorder the
-     Latin around it. Without this the breakdown scrambles. */
-  function bdi(text) {
-    const n = document.createElement('bdi');
-    n.textContent = text;
-    return n;
-  }
+  // Shared DOM helpers live in ui.js so the compare and screening pages don't
+  // define them twice. Aliased locally to keep the call sites unchanged.
+  const { el, bdi, ruleTag, openSheet, wireSheets, wireRulePop, renderMethod } = UI;
 
   const FIELD_DEFS = [
     { key: 'fullName',  label: 'Name',       type: 'text',   dir: true,
@@ -475,82 +464,7 @@
     });
   }
 
-  /* ── Sheets ──────────────────────────────────────────────────────────── */
-
-  function openSheet(id) {
-    const d = document.getElementById(id);
-    if (d && typeof d.showModal === 'function') d.showModal();
-  }
-
-  function wireSheets() {
-    $$('[data-open]').forEach((b) =>
-      b.addEventListener('click', () => openSheet(b.dataset.open)));
-    $$('dialog').forEach((d) => {
-      $$('[data-close]', d).forEach((b) => b.addEventListener('click', () => d.close()));
-      // Clicking the backdrop closes it. The dialog element reports backdrop
-      // clicks as clicks on itself, so compare against the target.
-      d.addEventListener('click', (e) => { if (e.target === d) d.close(); });
-    });
-  }
-
-  /* ── Rule popover ────────────────────────────────────────────────────────
-   *
-   * Every score in this tool cites a rule, and that claim is only worth
-   * anything if the reader can actually find out what the rule says. Press any
-   * id and it tells you, anchored where you pressed rather than buried in a
-   * native tooltip nobody discovers.
-   */
-
-  let popAnchor = null;
-
-  function hideRulePop() {
-    $('#rule-pop').hidden = true;
-    if (popAnchor) popAnchor.setAttribute('aria-expanded', 'false');
-    popAnchor = null;
-  }
-
-  function showRulePop(anchor, id) {
-    const rule = RULES[id];
-    if (!rule) return;
-    const pop = $('#rule-pop');
-
-    pop.innerHTML = '';
-    pop.append(el('span', 'pop-id', id),
-               el('span', 'pop-name', rule.name),
-               el('span', 'pop-desc', rule.description));
-
-    pop.hidden = false;
-    const r = anchor.getBoundingClientRect();
-    const w = pop.offsetWidth;
-    // Keep it on screen: prefer left-aligned to the id, shift in if it would
-    // overflow, and point the arrow back at whatever was pressed.
-    let left = r.left + window.scrollX;
-    const maxLeft = window.scrollX + document.documentElement.clientWidth - w - 12;
-    if (left > maxLeft) left = Math.max(window.scrollX + 12, maxLeft);
-    pop.style.left = left + 'px';
-    pop.style.top = (r.bottom + window.scrollY + 8) + 'px';
-    pop.style.setProperty('--arrow',
-      Math.max(10, Math.min(w - 18, r.left + window.scrollX - left + 8)) + 'px');
-
-    anchor.setAttribute('aria-expanded', 'true');
-    popAnchor = anchor;
-  }
-
-  function wireRulePop() {
-    document.addEventListener('click', (e) => {
-      const chip = e.target.closest ? e.target.closest('.rule-id') : null;
-      if (chip) {
-        if (popAnchor === chip) { hideRulePop(); return; }
-        hideRulePop();
-        showRulePop(chip, chip.dataset.rule);
-        return;
-      }
-      if (!e.target.closest || !e.target.closest('#rule-pop')) hideRulePop();
-    });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideRulePop(); });
-    window.addEventListener('resize', hideRulePop);
-    window.addEventListener('scroll', hideRulePop, { passive: true });
-  }
+  /* Sheets and the rule popover are wired by ui.js (UI.wireSheets, UI.wireRulePop). */
 
   /* ── Thresholds ──────────────────────────────────────────────────────── */
 
@@ -602,19 +516,6 @@
   // The middle verdict is shown as "Review" — a human should look at it. The
   // internal key stays REFER throughout the engine, so only this label changes.
   const BANNER_TEXT  = { MATCH: 'Match', REFER: 'Review', NO_MATCH: 'No match' };
-
-  function ruleTag(id) {
-    const span = el('span', 'rule-id', id);
-    span.dataset.rule = id;
-    span.setAttribute('role', 'button');
-    span.setAttribute('tabindex', '0');
-    span.setAttribute('aria-expanded', 'false');
-    span.title = RULES[id] ? RULES[id].name : id;
-    span.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); span.click(); }
-    });
-    return span;
-  }
 
   /* English prose with quoted Arabic or Hebrew islands inside it. Pinning the
      paragraph to LTR stops a reason that happens to BEGIN with an Arabic token
@@ -797,63 +698,15 @@
     );
   }
 
-  /* Save the note as a text file. Built and revoked entirely in the page — the
-   * note never leaves the browser, same as everything else here. */
+  /* Save the note as a text file, built and revoked in the page (UI.downloadText)
+   * — the note never leaves the browser, same as everything else here. */
   function downloadNote() {
     const text = $('#note-text').value;
     if (!text) return;
     const verdict = lastResult ? lastResult.verdict.toLowerCase().replace('_', '-') : 'note';
     const date = lastResult ? lastResult.evaluatedOn : new Date().toISOString().slice(0, 10);
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `kyc-note-${verdict}-${date}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    UI.downloadText(`kyc-note-${verdict}-${date}.txt`, text);
     $('#copy-status').textContent = 'Downloaded.';
-  }
-
-  /* ── Rendering: how it works ─────────────────────────────────────────── */
-
-  function renderMethod() {
-    const host = $('#method-body');
-    host.innerHTML = METHOD_PROSE;
-
-    /* The equivalence classes and the rule table are generated from the same
-       data the engine runs on, so this page cannot drift out of date. */
-    const chips = $('#method-classes');
-    if (chips) {
-      EQUIVALENCE_DISPLAY.forEach((c) => {
-        const div = el('div', 'class-chip');
-        const b = bdi(c.members);
-        // Isolation alone is not enough here. These strings list Arabic, then
-        // Hebrew, then Latin, and <bdi> takes its direction from the first
-        // strong character — which is Arabic, flipping the whole line to RTL
-        // and showing the three groups in reverse. Forcing LTR keeps them in
-        // the authored order while each Arabic run still renders right-to-left
-        // internally, which is what we want.
-        b.dir = 'ltr';
-        div.appendChild(b);
-        div.appendChild(el('span', 'cls', 'class ' + c.cls + ' — ' + c.note));
-        chips.appendChild(div);
-      });
-    }
-
-    const rulesBody = $('#method-rules');
-    if (rulesBody) {
-      Object.keys(RULES).forEach((id) => {
-        const tr = document.createElement('tr');
-        const td1 = document.createElement('td');
-        td1.appendChild(ruleTag(id));
-        tr.appendChild(td1);
-        tr.appendChild(el('td', null, RULES[id].name));
-        tr.appendChild(el('td', null, RULES[id].description));
-        rulesBody.appendChild(tr);
-      });
-    }
   }
 
   /* ── Init ────────────────────────────────────────────────────────────── */

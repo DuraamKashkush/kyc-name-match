@@ -725,7 +725,8 @@ var TEST_SUITE = (function () {
     if (typeof require === 'undefined') return;   // browser run: skipped
     var fs = require('fs'), vm = require('vm');
     var files = ['lexicon.js', 'mrz.js', 'rules.js', 'engine.js', 'cases.js',
-                 'ocr.js', 'method.js', 'app.js', 'tests.js', 'lists/sample.js'];
+                 'ocr.js', 'method.js', 'ui.js', 'app.js', 'screening.js',
+                 'tests.js', 'lists/sample.js'];
     var broken = [];
     files.forEach(function (f) {
       try { new vm.Script(fs.readFileSync(__dirname + '/' + f, 'utf8'), { filename: f }); }

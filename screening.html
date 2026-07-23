@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Watchlist screening for KYC</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <span class="nav-brand">Name matching for KYC</span>
+    <div class="nav-links">
+      <a href="index.html">Compare</a>
+      <a href="screening.html" aria-current="page">Screen</a>
+      <button type="button" data-open="sheet-method">How it works</button>
+      <a href="tests.html">Tests</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <span class="pill" id="data-pill">Synthetic sample list</span>
+  <h1>One name.<br>Every list, checked.</h1>
+  <p>Screen a person against a watchlist across Arabic, Hebrew and Latin script.
+     Every hit names the rule that raised it — and the identifier that discounts it.</p>
+</header>
+
+<main>
+
+  <!-- Sample scenarios -->
+  <div class="segmented" id="scenario-buttons" role="group" aria-label="Sample scenarios"></div>
+  <p class="caption" id="scenario-blurb"></p>
+
+  <form id="screen-form" autocomplete="off">
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>Person to screen</h2>
+          <span class="card-sub" id="list-summary"></span>
+        </div>
+        <button type="button" class="chip-btn" data-open="sheet-list">View list</button>
+      </div>
+      <div class="rows" id="query-fields"></div>
+    </section>
+
+    <div class="actions">
+      <button type="submit" class="btn btn-primary" id="run-screen">Screen</button>
+      <button type="button" class="btn btn-quiet" id="clear-screen">Clear</button>
+      <button type="button" class="btn btn-quiet" data-open="sheet-threshold">Threshold</button>
+    </div>
+  </form>
+
+  <section id="screen-results" hidden aria-live="polite"></section>
+
+</main>
+
+<footer class="foot">
+  <p>Screening is a secondary aid, not a system of record. Your query stays in your browser.</p>
+  <p class="foot-links">
+    <a href="index.html">Compare</a>
+    <button type="button" data-open="sheet-method">How it works</button>
+    <button type="button" data-open="sheet-privacy">Privacy</button>
+    <a href="tests.html">Tests</a>
+    <span id="engine-version-footer"></span>
+  </p>
+</footer>
+
+<!-- ── Sheets ────────────────────────────────────────────────────────────── -->
+
+<dialog id="sheet-method" class="sheet sheet-wide">
+  <div class="sheet-head">
+    <h2>How it works</h2>
+    <button type="button" class="sheet-close" data-close aria-label="Close">&#10005;</button>
+  </div>
+  <div class="sheet-body"><div id="method-body"></div></div>
+</dialog>
+
+<dialog id="sheet-note" class="sheet">
+  <div class="sheet-head">
+    <h2>Screening note</h2>
+    <button type="button" class="sheet-close" data-close aria-label="Close">&#10005;</button>
+  </div>
+  <div class="sheet-body">
+    <div class="note-actions">
+      <button type="button" class="btn btn-small" id="copy-note">Copy</button>
+      <button type="button" class="btn btn-small" id="download-note">Download .txt</button>
+      <span class="copy-status" id="copy-status" role="status"></span>
+    </div>
+    <textarea id="note-text" rows="22" readonly spellcheck="false"
+      aria-label="Screening note, plain text"></textarea>
+  </div>
+</dialog>
+
+<dialog id="sheet-threshold" class="sheet">
+  <div class="sheet-head">
+    <h2>Screening threshold</h2>
+    <button type="button" class="sheet-close" data-close aria-label="Close">&#10005;</button>
+  </div>
+  <div class="sheet-body">
+    <label class="slider">
+      <span>Surface a hit at or above</span>
+      <input type="range" id="th-hit" min="50" max="100" step="1" value="75">
+      <output id="th-hit-out">75</output>
+    </label>
+    <p class="sheet-note">Screening sits below the verification match bar (85) on purpose: a
+      missed true match is worse than a reviewed false one, so the bar to surface a hit is
+      lower and a human dispositions what surfaces.</p>
+    <button type="button" class="btn btn-small" id="th-reset">Reset to default</button>
+  </div>
+</dialog>
+
+<dialog id="sheet-list" class="sheet sheet-wide">
+  <div class="sheet-head">
+    <h2>Loaded list</h2>
+    <button type="button" class="sheet-close" data-close aria-label="Close">&#10005;</button>
+  </div>
+  <div class="sheet-body"><div id="list-body"></div></div>
+</dialog>
+
+<dialog id="sheet-privacy" class="sheet">
+  <div class="sheet-head">
+    <h2>Privacy &amp; sources</h2>
+    <button type="button" class="sheet-close" data-close aria-label="Close">&#10005;</button>
+  </div>
+  <div class="sheet-body">
+    <div class="method-prose">
+      <p><strong>The name you screen never leaves your browser.</strong> It is matched here,
+      client-side, against lists already loaded on the page — there is no backend, no screening
+      API, no analytics. Hosting the tool publishes the tool, never your query.</p>
+      <p>This public page ships a <strong>synthetic sample list</strong>. A local build can load
+      real published lists (OFAC, UN, EU sanctions; OpenSanctions for PEPs; FATF/EU country
+      risk) — each attributed in <code>SOURCES.md</code>. OpenSanctions is CC-BY-NC: fine for
+      personal, non-commercial use; commercial use needs their licence.</p>
+      <p class="muted">A secondary aid, not a validated system of record. Real screening
+      decisions belong in your firm's approved, governed system.</p>
+    </div>
+  </div>
+</dialog>
+
+<div id="rule-pop" hidden role="tooltip"></div>
+
+<script src="lexicon.js"></script>
+<script src="mrz.js"></script>
+<script src="rules.js"></script>
+<script src="engine.js"></script>
+<script src="cases.js"></script>
+<script src="lists/sample.js"></script>
+<script src="method.js"></script>
+<script src="ui.js"></script>
+<script src="screening.js"></script>
+</body>
+</html>
