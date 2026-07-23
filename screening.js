@@ -232,7 +232,7 @@
       head.appendChild(el('h3', null, res.hits.length === 1 ? '1 hit' : res.hits.length + ' hits'));
       head.appendChild(el('span', null, 'a person dispositions these'));
       group.appendChild(head);
-      res.hits.forEach((h) => group.appendChild(renderHit(h)));
+      res.hits.forEach((h) => group.appendChild(renderHit(h, res.query.fullName)));
       card.appendChild(group);
     }
 
@@ -240,13 +240,19 @@
       `Engine ${res.engineVersion} · surfaced at ≥ ${res.thresholds.hit} · ${res.evaluatedOn}`));
   }
 
-  function renderHit(h) {
+  const TYPE_LABEL = { sanction: 'Sanctions listing', pep: 'Politically exposed person' };
+
+  function renderHit(h, queryName) {
     const item = el('div', 'item hit ' + BADGE_CLASS[h.classification]);
 
+    // Headline: WHO was found — the listed entity — and the badge/score.
     const top = el('div', 'item-top');
-    const toks = el('div', 'pair-tokens');
-    toks.appendChild(tokenCell(h.matchedName));
-    top.appendChild(toks);
+    const listed = el('div', 'hit-listed');
+    listed.appendChild(el('span', 'hit-listed-label', 'Listed'));
+    const nm = bdi(h.primaryName || h.matchedName);
+    nm.className = 'hit-listed-name';
+    listed.appendChild(nm);
+    top.appendChild(listed);
 
     const meta = el('div', 'item-meta');
     if (h.listType === 'pep') meta.appendChild(el('span', 'pep-tag', 'PEP'));
@@ -255,30 +261,61 @@
     top.appendChild(meta);
     item.appendChild(top);
 
-    const sub = el('p', 'hit-sub');
-    sub.appendChild(document.createTextNode(
-      [h.source, h.program].filter(Boolean).join(' · ') + (h.viaAlias ? ' · matched via alias' : '')));
-    item.appendChild(sub);
+    // WHAT LIST it is on.
+    const on = el('p', 'hit-on');
+    on.appendChild(el('strong', null, TYPE_LABEL[h.listType] || h.listType));
+    on.appendChild(document.createTextNode(
+      ' · ' + [h.source, h.program].filter(Boolean).join(' · ')));
+    item.appendChild(on);
 
-    // Rule chips + secondary-identifier findings, LTR so a leading Arabic token
-    // does not flip the line.
-    const reason = el('p', 'item-reason');
-    reason.dir = 'ltr';
-    h.rules.forEach((id) => reason.appendChild(ruleTag(id)));
+    // WHY it is a hit: the name match (against the query, noting an alias), then
+    // the secondary identifiers. LTR so a leading Arabic token cannot flip it.
+    const nameLine = el('p', 'item-reason');
+    nameLine.dir = 'ltr';
+    nameLine.appendChild(ruleTag('SCR-1'));
+    if (h.viaAlias) nameLine.appendChild(ruleTag('SCR-5'));
+    let why = 'The name matches your query “' + (queryName || '') + '” at ' + h.nameScore +
+              ' / 100';
+    if (h.viaAlias) why += ', via the listed alias “' + h.matchedName + '”';
+    why += '.';
+    nameLine.appendChild(document.createTextNode(why));
+    item.appendChild(nameLine);
+
+    const secLine = el('p', 'item-reason');
+    secLine.dir = 'ltr';
+    const secRule = h.classification === 'DISCOUNTED' ? 'SCR-3'
+                  : h.classification === 'STRONG' ? 'SCR-2' : null;
+    if (secRule) secLine.appendChild(ruleTag(secRule));
+    if (h.listType === 'pep') secLine.appendChild(ruleTag('SCR-6'));
     if (h.secondary.length) {
-      reason.appendChild(document.createTextNode(h.secondary.map((s) =>
-        s.field + ' ' + (s.status === 'corroborate' ? 'agrees' : 'conflicts')).join(', ') + '.'));
+      const agree = h.secondary.filter((s) => s.status === 'corroborate')
+        .map((s) => s.field.toLowerCase());
+      const clash = h.secondary.filter((s) => s.status === 'conflict');
+      const bits = [];
+      if (agree.length) bits.push(agree.join(', ') + ' agree' + (agree.length === 1 ? 's' : ''));
+      clash.forEach((s) => bits.push(s.field.toLowerCase() + ' conflicts (you have ' +
+        (s.query || '—') + ', the list has ' + (s.entry || '—') + ')'));
+      let sentence = bits.join('; ') + '.';
+      sentence = sentence.charAt(0).toUpperCase() + sentence.slice(1);
+      if (h.classification === 'DISCOUNTED') sentence += ' Discounted — confirm before dismissing.';
+      else if (h.classification === 'STRONG') sentence += ' A strong match to escalate.';
+      secLine.appendChild(document.createTextNode(sentence));
     } else {
-      reason.appendChild(document.createTextNode(
-        'No secondary identifier present on both sides to corroborate or discount.'));
+      secLine.appendChild(document.createTextNode(
+        'No date of birth, sex or nationality is present on both sides, so nothing corroborates ' +
+        'or discounts the name — treat as a potential match.'));
     }
-    item.appendChild(reason);
+    if (h.listType === 'pep') {
+      secLine.appendChild(document.createTextNode(
+        ' This is a PEP: heightened due diligence, not a block.'));
+    }
+    item.appendChild(secLine);
 
     // The name breakdown, one press away — same rule-cited detail as the compare tool.
     if (h.pairs && h.pairs.length) {
       const det = el('details', 'hit-breakdown');
       const sum = document.createElement('summary');
-      sum.textContent = 'Name breakdown';
+      sum.textContent = 'Why the name matched, token by token';
       det.appendChild(sum);
       h.pairs.forEach((p) => {
         const row = el('div', 'item');

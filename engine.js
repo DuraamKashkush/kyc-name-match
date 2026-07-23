@@ -1757,8 +1757,10 @@ var KYC = (function () {
       hits.push({
         entryId: entry.id, source: entry.source || '', program: entry.program || '',
         listType: String(entry.type || 'sanction').toLowerCase(),
-        matchedName: best.name, viaAlias: best.isAlias, nameScore: best.score,
-        pairs: best.pairs, classification: classification,
+        // primaryName identifies the listed entity; matchedName is the spelling
+        // (primary or an alias) the query actually scored against.
+        primaryName: entry.name, matchedName: best.name, viaAlias: best.isAlias,
+        nameScore: best.score, pairs: best.pairs, classification: classification,
         secondary: findings, rules: rules,
       });
     });
@@ -1853,13 +1855,18 @@ var KYC = (function () {
       L2.push('HITS');
       L2.push('-'.repeat(60));
       res.hits.forEach(function (h, i) {
-        L2.push((i + 1) + '. ' + h.classification + ' — ' + h.matchedName +
-                (h.viaAlias ? ' (alias)' : '') + '  [' + h.nameScore + '/100]');
-        L2.push(wrap(h.source + (h.program ? ', ' + h.program : '') + ' · ' + h.listType +
-                     ' · [' + h.rules.join(', ') + ']', '     '));
+        L2.push((i + 1) + '. ' + h.classification + '  [' + h.nameScore + '/100]  [' +
+                h.rules.join(', ') + ']');
+        L2.push(wrap('Listed: ' + (h.primaryName || h.matchedName), '     ', 76, 8));
+        L2.push(wrap('On:     ' + h.listType + ' · ' + h.source +
+                     (h.program ? ' · ' + h.program : ''), '     ', 76, 8));
+        L2.push(wrap('Why:    the name matches the query at ' + h.nameScore + '/100' +
+                     (h.viaAlias ? ' via the listed alias "' + h.matchedName + '"' : '') + '.',
+                     '     ', 76, 8));
         h.secondary.forEach(function (s) {
-          L2.push(wrap(s.field + ': ' + (s.status === 'corroborate' ? 'agrees' : 'conflicts') +
-                       ' (query ' + (s.query || '—') + ', entry ' + (s.entry || '—') +
+          L2.push(wrap('        ' + s.field + ': ' +
+                       (s.status === 'corroborate' ? 'agrees' : 'conflicts') +
+                       ' (query ' + (s.query || '—') + ', list ' + (s.entry || '—') +
                        ')', '     '));
         });
       });
