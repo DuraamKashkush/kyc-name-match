@@ -61,8 +61,13 @@ var KYC = (function () {
    * a driving licence share one identifier, so their numbers are compared after
    * all, and a pair that returned MATCH under 1.2.0 can refer here. 1.4.0
    * rereads Latin "ch" as /x/ rather than sh and carries it as an uncertain
-   * letter, which moves the score of any name spelled with one. */
-  var VERSION = '1.4.0';
+   * letter, which moves the score of any name spelled with one. 1.5.0 adds a
+   * sex check (SEX-1) so a masculine and feminine name that share a consonant
+   * skeleton — Samir and Samira — no longer pass as one person; validates dates
+   * rather than trusting the caller (DATE-1); caps on an unreadable MRZ and
+   * cross-checks its nationality; and now emits NORM-1, HEB-1, AGG-1 and CAP-1,
+   * which described real steps but were never cited. */
+  var VERSION = '1.5.0';
 
   /* ── Edit costs ────────────────────────────────────────────────────────
    *
@@ -536,8 +541,45 @@ var KYC = (function () {
 
   /* Run the particle layer over a full token list. Nothing is ever dropped
    * silently — every change returns a finding that names its rule. */
+  /* Did this token carry orthographic marks that normalisation removes — Arabic
+   * harakat/tanwin/shadda/tatweel, Hebrew niqqud, or Latin accents? These are
+   * optional in writing and almost never present in a system record, so they are
+   * stripped before comparison (NORM-1). The geresh is deliberately excluded: it
+   * is a letter modifier, not a diacritic, and is handled under HEB-1. */
+  function hasRemovableMarks(tok) {
+    var script = detectScript(tok);
+    if (script === 'arabic') return ARABIC_DIA_.test(tok);
+    if (script === 'hebrew') return HEBREW_DIA_.test(tok);
+    // A Latin token carries removable marks when any character folds to a plain
+    // ASCII letter — an accent, in other words.
+    return tok.split('').some(function (ch) {
+      return Object.prototype.hasOwnProperty.call(LATIN_FOLD_, ch);
+    });
+  }
+
+  function hasGeresh(tok) {
+    return detectScript(tok) === 'hebrew' && /['’׳]/.test(tok);
+  }
+
   function preprocessTokens(rawTokens) {
     var findings = [];
+
+    // Report the two orthographic steps that happen silently inside the
+    // skeleton, so the method-page rules that describe them can actually be
+    // cited by a run rather than only documented.
+    if (rawTokens.some(hasRemovableMarks)) {
+      findings.push({ rules: ['NORM-1'], subject: rawTokens.join(' '),
+        reason: 'Optional orthographic marks — Arabic harakat, Hebrew niqqud or Latin ' +
+                'accents — removed before comparison. They are almost never present in a ' +
+                'system record, so keeping them would only manufacture differences.' });
+    }
+    if (rawTokens.some(hasGeresh)) {
+      findings.push({ rules: ['HEB-1'], subject: rawTokens.filter(hasGeresh).join(' '),
+        reason: 'A Hebrew geresh is read as a letter modifier, not stripped as a mark: ' +
+                'ג׳ is j, צ׳ is ch, ת׳ is th. Treating it as a diacritic would collapse ' +
+                'each onto the wrong Arabic consonant.' });
+    }
+
     var tokens = rawTokens.map(normalizeToken).filter(Boolean);
     var i;
 
@@ -720,6 +762,10 @@ var KYC = (function () {
       pairs: rows,
       preprocessing: preprocessing,
       unmatchedMiddles: unmatchedMiddles,
+      // More than one token means the score is a weighted aggregate rather than
+      // a single pair's — that weighting is AGG-1, cited so the number is not a
+      // black box.
+      aggregated: (ta.length > 1 || tb.length > 1),
     };
   }
 
@@ -744,15 +790,38 @@ var KYC = (function () {
 
   /* ── Dates ─────────────────────────────────────────────────────────────── */
 
+  /* A date is either absent, well-formed, or malformed — three states, not two.
+   * The browser's date input yields YYYY-MM-DD, but the engine is also handed
+   * values from the MRZ and could be driven from a paste or an API, so it
+   * validates rather than trusting the shape. `bad: true` marks a string that
+   * looked like a date but is not a real calendar date (2000-99-99), which must
+   * be reported, never silently treated as an agreeing value. */
   function parseDate(s) {
     if (!s) return null;
     var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!m) return null;
-    return { y: +m[1], m: +m[2], d: +m[3], iso: s };
+    if (!m) return { bad: true, raw: s };
+    var y = +m[1], mo = +m[2], d = +m[3];
+    if (mo < 1 || mo > 12 || d < 1 || d > daysInMonth(y, mo)) return { bad: true, raw: s };
+    return { y: y, m: mo, d: d, iso: s };
+  }
+
+  function daysInMonth(y, m) {
+    return [31, (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0 ? 29 : 28,
+            31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1];
   }
 
   function checkDob(a, b) {
     var da = parseDate(a.dob), db = parseDate(b.dob);
+
+    var malformed = [];
+    if (da && da.bad) malformed.push('A (' + da.raw + ')');
+    if (db && db.bad) malformed.push('B (' + db.raw + ')');
+    if (malformed.length) {
+      return field('Date of birth', a.dob, b.dob, 'bad', 'Not a valid date', ['DATE-1'],
+        'The date of birth on record ' + malformed.join(' and ') + ' is not a real ' +
+        'calendar date, so it cannot be compared and something is wrong with the record.',
+        'REFER');
+    }
 
     if (!da || !db) {
       return field('Date of birth', a.dob, b.dob, 'info', 'Not compared', ['MISS-1'],
@@ -791,6 +860,16 @@ var KYC = (function () {
 
   function checkExpiry(a, b, today) {
     var ea = parseDate(a.expiry), eb = parseDate(b.expiry);
+
+    var malformed = [];
+    if (ea && ea.bad) malformed.push('A (' + ea.raw + ')');
+    if (eb && eb.bad) malformed.push('B (' + eb.raw + ')');
+    if (malformed.length) {
+      return field('Expiry', a.expiry, b.expiry, 'bad', 'Not a valid date', ['DATE-1'],
+        'The expiry date on record ' + malformed.join(' and ') + ' is not a real calendar ' +
+        'date, so validity cannot be established.', 'REFER');
+    }
+
     if (!ea && !eb) {
       return field('Expiry', a.expiry, b.expiry, 'info', 'Not compared', ['MISS-1'],
         'No expiry date on either record.', null);
@@ -823,8 +902,18 @@ var KYC = (function () {
         'expires, which usually means they describe two different documents.', 'REFER');
     }
 
+    // Only one side carried an expiry. Nothing was compared; all that can be
+    // said is that the one date present is in the future. Labelling this "Valid"
+    // as if the two had been checked against each other would overstate it.
+    if (!ea || !eb) {
+      var which = ea ? 'A' : 'B';
+      return field('Expiry', a.expiry, b.expiry, 'info', 'One side only', ['EXP-3'],
+        'Only record ' + which + ' carries an expiry date, and it is in the future as at ' +
+        today + '. There is nothing to compare it against.', null);
+    }
+
     return field('Expiry', a.expiry, b.expiry, 'ok', 'Valid', ['EXP-3'],
-      'Within validity as at ' + today + '.', null);
+      'Both documents are within validity as at ' + today + '.', null);
   }
 
   /* The Israeli identity number carries a published check digit. This is real
@@ -975,9 +1064,14 @@ var KYC = (function () {
     var parsed = MRZ_.parse(rec.mrz, Number(today.slice(0, 4)));
 
     if (!parsed || !parsed.ok) {
+      // A zone was supplied and could not be parsed. That is not nothing — a
+      // machine-readable zone that will not read is itself a reason to look
+      // closer, so it refers rather than being noted and ignored.
       out.push(field('MRZ (' + side + ')', rec.mrz, '', 'warn', 'Not readable',
         ['MRZ-4'],
-        (parsed && parsed.error) || 'The zone could not be read.', null));
+        ((parsed && parsed.error) || 'The zone could not be read.') +
+        ' A supplied zone that will not parse is a reason to check the document by hand.',
+        'REFER'));
       return out;
     }
 
@@ -1031,6 +1125,15 @@ var KYC = (function () {
     xcheck('document number', f.documentNumber, rec.docNumber, strip);
     xcheck('date of birth', f.dob, rec.dob);
     xcheck('expiry', f.expiry, rec.expiry);
+    // The zone also carries sex and nationality. Comparing them against the
+    // record catches a keyed field that does not match the document it came from.
+    if (f.sex && normSex(rec.sex)) xcheck('sex', normSex(f.sex), normSex(rec.sex));
+    // The record's country is ISO alpha-2 (IL); the zone's nationality is the
+    // alpha-3 (ISR). Only compare where the mapping is known, so an unmapped
+    // country is left uncompared rather than flagged as a spurious mismatch.
+    if (f.nationality && rec.country && COUNTRY_A3_[rec.country]) {
+      xcheck('nationality', strip(f.nationality), COUNTRY_A3_[rec.country]);
+    }
 
     if (diffs.length || agreed.length) {
       out.push(field('MRZ vs printed (' + side + ')',
@@ -1084,6 +1187,36 @@ var KYC = (function () {
           'nationality and re-documentation both produce this legitimately.',
       null));
     return out;
+  }
+
+  /* Sex is the one field that separates names a consonant skeleton cannot. The
+   * feminine ending is silent in Arabic — فاطمة is Fatima, not Fatimat — so the
+   * skeleton correctly drops it, which also collapses Samir onto Samira and
+   * Karim onto Karima. Those are different people, and nothing in the name tells
+   * them apart. A recorded sex does, so a disagreement caps the outcome: it is
+   * exactly the signal the name match is blind to.
+   *
+   * Only 'M' and 'F' are compared. Anything else — blank, X, unspecified — is
+   * treated as no assertion and cannot lower a verdict, because an absent value
+   * is not a contradiction. */
+  function normSex(v) {
+    var s = String(v || '').trim().toUpperCase().charAt(0);
+    return (s === 'M' || s === 'F') ? s : '';
+  }
+
+  function checkSex(a, b) {
+    var sa = normSex(a.sex), sb = normSex(b.sex);
+    if (!sa || !sb) return [];   // nothing asserted on one side; not comparable
+
+    if (sa === sb) {
+      return [field('Sex', sa, sb, 'ok', 'Agrees', ['SEX-1'],
+        'Both records record the same sex.', null)];
+    }
+    return [field('Sex', sa, sb, 'bad', 'Differs', ['SEX-1'],
+      'The records disagree on sex (' + sa + ' against ' + sb + '). Two documents for one ' +
+      'person do not, so this is a real discrepancy — and it is the one difference a ' +
+      'consonant-skeleton name match is blind to, since a masculine and feminine form of ' +
+      'the same name reduce alike.', 'REFER')];
   }
 
   /* Localities have the identical transliteration problem as people — Umm
@@ -1192,6 +1325,15 @@ var KYC = (function () {
     return map[v] || v || '';
   }
 
+  /* ISO alpha-2 (the form's issuing-country codes) to alpha-3 (what an MRZ
+   * carries in its nationality field), for the countries this tool offers. Used
+   * only to make the MRZ nationality cross-check comparable across the two
+   * code systems. */
+  var COUNTRY_A3_ = {
+    IL: 'ISR', JO: 'JOR', PS: 'PSE', EG: 'EGY', LB: 'LBN', SY: 'SYR', IQ: 'IRQ',
+    SA: 'SAU', AE: 'ARE', MA: 'MAR', TN: 'TUN', DZ: 'DZA',
+  };
+
   function field(name, a, b, status, statusLabel, rules, reason, cap) {
     return {
       field: name, a: a || '', b: b || '', status: status, statusLabel: statusLabel,
@@ -1201,11 +1343,26 @@ var KYC = (function () {
 
   function round2(n) { return Math.round(n * 100) / 100; }
 
+  /* Thresholds come from the caller and a broken pair — refer at or above match
+   * — makes the middle band incoherent. The UI clamps as you drag; the engine
+   * clamps too, so a call from anywhere else cannot produce a nonsensical scale. */
+  function normalizeThresholds(t) {
+    t = t || {};
+    var match = typeof t.match === 'number' ? t.match : 85;
+    var refer = typeof t.refer === 'number' ? t.refer : 60;
+    if (refer >= match) refer = Math.max(0, match - 1);
+    return { match: match, refer: refer };
+  }
+
   /* ── Top level ─────────────────────────────────────────────────────────── */
 
   function compare(recA, recB, opts) {
     opts = opts || {};
-    var thresholds = opts.thresholds || { match: 85, refer: 60 };
+    // A missing record is a programming error, not a comparison. Fail with a
+    // clear message rather than a cryptic property read three calls deep.
+    recA = recA || {};
+    recB = recB || {};
+    var thresholds = normalizeThresholds(opts.thresholds);
     // The evaluation date is an input, not a clock read, so a run can be
     // reproduced later and still give the same answer.
     var today = opts.today || new Date().toISOString().slice(0, 10);
@@ -1221,6 +1378,7 @@ var KYC = (function () {
       .concat(checkDocNumber(recA, recB))
       .concat(checkMrz(recA, 'A', today))
       .concat(checkMrz(recB, 'B', today))
+      .concat(checkSex(recA, recB))
       .concat(checkTypeAndCountry(recA, recB))
       .concat([checkAddress(recA, recB)])
       .concat(checkProvenance(provenance.a, 'A'))
@@ -1242,6 +1400,7 @@ var KYC = (function () {
     });
 
     var verdictReason = buildVerdictReason(provisional, verdict, name, thresholds);
+    var capped = verdict !== provisional;
 
     return {
       engineVersion: VERSION,
@@ -1256,6 +1415,10 @@ var KYC = (function () {
       hardStops: hardStops,
       provisionalVerdict: provisional,
       verdict: verdict,
+      // The meta-rule for the capping mechanism itself (CAP-1), distinct from
+      // the specific rule inside each hard stop. Cited when a cap actually fired.
+      capped: capped,
+      capRule: capped ? 'CAP-1' : null,
       verdictReason: verdictReason,
     };
   }
@@ -1313,8 +1476,10 @@ var KYC = (function () {
     L2.push('');
     L2.push('RECORDS COMPARED');
     L2.push('-'.repeat(60));
-    L2.push('A (identity document): ' + describeRecord(res.recordA));
-    L2.push('B (system record):     ' + describeRecord(res.recordB));
+    // Wrapped and hang-indented like every other block: a long name must not
+    // push a line past the width this note promises to hold to.
+    L2.push(wrap('A (identity document): ' + describeRecord(res.recordA), '', 76, 23));
+    L2.push(wrap('B (system record):     ' + describeRecord(res.recordB), '', 76, 23));
     L2.push('');
     L2.push('FINDING');
     L2.push('-'.repeat(60));
@@ -1340,10 +1505,16 @@ var KYC = (function () {
 
     L2.push('NAME COMPARISON');
     L2.push('-'.repeat(60));
+    if (res.name.aggregated) {
+      L2.push(wrap('[AGG-1] Token scores are combined by role: the given and family names ' +
+                   'carry more weight than a middle patronymic, because those are the ' +
+                   'positions that identify the person.', '  '));
+      L2.push('');
+    }
     res.name.pairs.forEach(function (p) {
       var head = (p.a || '—') + '  vs  ' + (p.b || '—') +
                  '   [' + p.role + (p.score == null ? '' : ', ' + p.score + '/100') + ']';
-      L2.push(head);
+      L2.push(wrap(head, '', 76, 5));
       L2.push(wrap('[' + p.rules.join(', ') + '] ' + p.reason, '     '));
     });
     L2.push('');
@@ -1359,6 +1530,10 @@ var KYC = (function () {
     if (res.hardStops.length) {
       L2.push('CONDITIONS THAT CAPPED THE VERDICT');
       L2.push('-'.repeat(60));
+      L2.push(wrap('[' + res.capRule + '] A field check lowered the verdict below what the ' +
+                   'name score alone would give. Checks can only lower a verdict, never ' +
+                   'raise it.', '  '));
+      L2.push('');
       res.hardStops.forEach(function (h) {
         L2.push(wrap('[' + h.rule + '] caps at ' + h.cap.replace('_', ' ') +
                      ' — ' + h.reason, '  '));
@@ -1415,6 +1590,7 @@ var KYC = (function () {
   function describeRecord(r) {
     var bits = [r.fullName || '(no name)'];
     if (r.dob) bits.push('DOB ' + r.dob);
+    if (normSex(r.sex)) bits.push('sex ' + normSex(r.sex));
     if (r.docType) bits.push(labelFor(r.docType));
     if (r.docNumber) bits.push('no. ' + r.docNumber);
     if (r.country) bits.push(r.country);
@@ -1425,18 +1601,23 @@ var KYC = (function () {
    * system with a monospaced field. The indent is applied per line rather than
    * being part of the text, since splitting on whitespace would otherwise eat it
    * and leave only the first line indented. */
-  function wrap(text, indent, width) {
+  function wrap(text, indent, width, hang) {
     indent = indent || '';
-    width = (width || 76) - indent.length;
+    width = (width || 76);
+    // hang is an optional continuation indent, so a wrapped label line keeps its
+    // continuations aligned under the text rather than back at the margin.
+    var contIndent = indent + ' '.repeat(hang || 0);
     var words = String(text).trim().split(/\s+/);
-    var lines = [], line = '';
+    var lines = [], line = '', first = true;
     words.forEach(function (w) {
+      var margin = (first ? indent : contIndent).length;
       if (!line.length) { line = w; return; }
-      if ((line + ' ' + w).length > width) { lines.push(line); line = w; }
-      else { line += ' ' + w; }
+      if (margin + (line + ' ' + w).length > width) {
+        lines.push((first ? indent : contIndent) + line); first = false; line = w;
+      } else { line += ' ' + w; }
     });
-    if (line.length) lines.push(line);
-    return lines.map(function (l) { return indent + l; }).join('\n');
+    if (line.length) lines.push((first ? indent : contIndent) + line);
+    return lines.join('\n');
   }
 
   return {

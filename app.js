@@ -31,6 +31,7 @@
     { key: 'fullName',  label: 'Name',       type: 'text',   dir: true,
       placeholder: 'As printed on the record' },
     { key: 'dob',       label: 'Born',       type: 'date' },
+    { key: 'sex',       label: 'Sex',        type: 'select', options: SEX_OPTIONS },
     { key: 'docType',   label: 'Document',   type: 'select', options: DOC_TYPES },
     { key: 'docNumber', label: 'Number',     type: 'text',   placeholder: '310256789' },
     { key: 'expiry',    label: 'Expires',    type: 'date' },
@@ -82,6 +83,9 @@
         input.dir = 'ltr';
         input.wrap = 'off';
         input.placeholder = def.placeholder;
+        // The summary text is not a <label for>, so give the textarea its own
+        // accessible name rather than leaving a screen reader to guess.
+        input.setAttribute('aria-label', def.label + ', record ' + side.toUpperCase());
         wrap.appendChild(input);
       } else {
         wrap = el('div', 'field');
@@ -441,7 +445,20 @@
     $('#sample-blurb').textContent = c.blurb;
   }
 
+  /* Is there anything a Clear would actually throw away? A blank form is not
+   * worth a confirmation prompt; a form someone has filled in is. */
+  function formHasContent() {
+    return ['a', 'b'].some((side) =>
+      FIELD_DEFS.some((def) => {
+        const v = ($(`#${side}-${def.key}`).value || '').trim();
+        return v && v !== EMPTY_RECORD[def.key];
+      }));
+  }
+
   function clearAll() {
+    // Confirm only when there is real input to lose, so one misclick cannot
+    // wipe a filled-in comparison — but an empty form clears without friction.
+    if (formHasContent() && !window.confirm('Clear both records and the finding?')) return;
     writeRecord('a', EMPTY_RECORD);
     writeRecord('b', EMPTY_RECORD);
     $$('#sample-buttons button').forEach((b) => b.setAttribute('aria-pressed', 'false'));
@@ -661,7 +678,9 @@
     if (res.hardStops.length) {
       const stops = el('div', 'group stops');
       const head = el('div', 'group-head');
-      head.appendChild(el('h3', null, 'Capped the outcome'));
+      const h = el('h3', null, 'Capped the outcome ');
+      if (res.capRule) h.appendChild(ruleTag(res.capRule));   // CAP-1: the capping mechanism itself
+      head.appendChild(h);
       head.appendChild(el('span', null, 'these can only lower it'));
       stops.appendChild(head);
 
@@ -676,7 +695,11 @@
     /* Name comparison — the part this tool exists for, so it stays open. */
     const nameGroup = el('div', 'group');
     const nameHead = el('div', 'group-head');
-    nameHead.appendChild(el('h3', null, 'Name'));
+    const nameH = el('h3', null, 'Name ');
+    // AGG-1: with more than one token the score is a weighted aggregate, so the
+    // rule that weights it is cited on the section rather than left implicit.
+    if (res.name.aggregated) nameH.appendChild(ruleTag('AGG-1'));
+    nameHead.appendChild(nameH);
     nameHead.appendChild(el('span', null,
       res.name.pairs.length + (res.name.pairs.length === 1 ? ' token' : ' tokens')));
     nameGroup.appendChild(nameHead);
@@ -772,6 +795,25 @@
     );
   }
 
+  /* Save the note as a text file. Built and revoked entirely in the page — the
+   * note never leaves the browser, same as everything else here. */
+  function downloadNote() {
+    const text = $('#note-text').value;
+    if (!text) return;
+    const verdict = lastResult ? lastResult.verdict.toLowerCase().replace('_', '-') : 'note';
+    const date = lastResult ? lastResult.evaluatedOn : new Date().toISOString().slice(0, 10);
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `kyc-note-${verdict}-${date}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    $('#copy-status').textContent = 'Downloaded.';
+  }
+
   /* ── Rendering: how it works ─────────────────────────────────────────── */
 
   function renderMethod() {
@@ -833,6 +875,7 @@
     });
     $('#clear-all').addEventListener('click', clearAll);
     $('#copy-note').addEventListener('click', copyNote);
+    $('#download-note').addEventListener('click', downloadNote);
     $('#th-reset').addEventListener('click', resetThresholds);
     $('#th-match').addEventListener('input', syncThresholdOutputs);
     $('#th-refer').addEventListener('input', syncThresholdOutputs);

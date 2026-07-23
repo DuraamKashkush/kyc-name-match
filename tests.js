@@ -577,6 +577,190 @@ var TEST_SUITE = (function () {
     eq(res.verdict, 'NO_MATCH', 'agreeing fields cannot raise the verdict');
   });
 
+  /* ── Sex: the discriminator a consonant skeleton is blind to ──────────── */
+
+  group('Sex — separating a name from its feminine form');
+
+  test('Samir and Samira reduce to the same skeleton', function () {
+    // The premise of the whole check: on names alone these are one.
+    eq(K.skeleton('Samir'), K.skeleton('Samira'), 'if these stop colliding, SEX-1 is moot');
+  });
+  test('A masculine and feminine name are caught by a differing sex', function () {
+    var res = K.compare(
+      rec({ fullName: 'Samir Hassan', sex: 'M', docType: 'national_id',
+            docNumber: '310256789', country: 'IL' }),
+      rec({ fullName: 'Samira Hassan', sex: 'F', docType: 'national_id',
+            docNumber: '310256789', country: 'IL' }),
+      { today: TODAY });
+    eq(res.nameScore, 100, 'the names still match perfectly');
+    eq(res.verdict, 'REFER', 'but a sex mismatch stops it being a clean match');
+    ok(res.hardStops.some(function (h) { return h.rule === 'SEX-1'; }), 'SEX-1 must cap');
+  });
+  test('The same sex agrees and does not cap', function () {
+    var res = K.compare(
+      rec({ fullName: 'Samir Hassan', sex: 'M' }),
+      rec({ fullName: 'Samir Hassan', sex: 'M' }),
+      { today: TODAY });
+    var s = res.checks.filter(function (c) { return c.field === 'Sex'; })[0];
+    eq(s.statusLabel, 'Agrees');
+    ok(!res.hardStops.some(function (h) { return h.rule === 'SEX-1'; }), 'agreement never caps');
+  });
+  test('A sex on only one side asserts nothing and is not compared', function () {
+    var res = K.compare(
+      rec({ fullName: 'Samir Hassan', sex: 'M' }),
+      rec({ fullName: 'Samir Hassan', sex: '' }),
+      { today: TODAY });
+    eq(res.checks.filter(function (c) { return c.field === 'Sex'; }).length, 0,
+       'no assertion on one side means no Sex row');
+  });
+  test('Unspecified vs unspecified produces no sex finding', function () {
+    var res = K.compare(rec({ fullName: 'Ali' }), rec({ fullName: 'Ali' }), { today: TODAY });
+    eq(res.checks.filter(function (c) { return c.field === 'Sex'; }).length, 0);
+  });
+
+  /* ── Date validation ──────────────────────────────────────────────────── */
+
+  group('Dates are validated, not trusted');
+
+  test('An impossible month or day is not a valid date', function () {
+    var res = K.compare(
+      rec({ fullName: 'Ali', dob: '2000-99-99' }),
+      rec({ fullName: 'Ali', dob: '2000-99-99' }), { today: TODAY });
+    var d = res.checks.filter(function (c) { return c.field === 'Date of birth'; })[0];
+    eq(d.statusLabel, 'Not a valid date');
+    ok(d.rules.indexOf('DATE-1') >= 0, 'must cite DATE-1');
+    ok(res.hardStops.some(function (h) { return h.rule === 'DATE-1'; }), 'and cap');
+  });
+  test('The 29th of February is judged against the leap year', function () {
+    var leap = K.compare(rec({ fullName: 'Ali', dob: '2000-02-29' }),
+                         rec({ fullName: 'Ali', dob: '2000-02-29' }), { today: TODAY });
+    eq(leap.checks.filter(function (c) { return c.field === 'Date of birth'; })[0].statusLabel,
+       'Agrees', '2000 is a leap year');
+    var non = K.compare(rec({ fullName: 'Ali', dob: '2001-02-29' }),
+                        rec({ fullName: 'Ali', dob: '2001-02-29' }), { today: TODAY });
+    eq(non.checks.filter(function (c) { return c.field === 'Date of birth'; })[0].statusLabel,
+       'Not a valid date', '2001 is not');
+  });
+  test('A malformed expiry cannot establish validity', function () {
+    var res = K.compare(rec({ fullName: 'Ali', expiry: '2029-13-01' }),
+                        rec({ fullName: 'Ali', expiry: '2029-13-01' }), { today: TODAY });
+    var e = res.checks.filter(function (c) { return c.field === 'Expiry'; })[0];
+    eq(e.statusLabel, 'Not a valid date');
+  });
+
+  /* ── Defensive behaviour the engine no longer trusts the caller for ───── */
+
+  group('The engine defends its own inputs');
+
+  test('A missing record does not throw', function () {
+    var res = K.compare(undefined, undefined, { today: TODAY });
+    eq(res.verdict, 'NO_MATCH', 'no name, no match, no crash');
+  });
+  test('A refer threshold at or above match is clamped', function () {
+    var res = K.compare(rec({ fullName: 'Ali' }), rec({ fullName: 'Ali' }),
+      { today: TODAY, thresholds: { match: 60, refer: 90 } });
+    ok(res.thresholds.refer < res.thresholds.match, 'refer forced below match: ' +
+       JSON.stringify(res.thresholds));
+  });
+
+  /* ── Rules that describe the pipeline are now actually cited ──────────── */
+
+  group('The method-page rules are all reachable');
+
+  function emittedBy(res) {
+    var e = {};
+    (res.name.preprocessing || []).forEach(function (f) {
+      (f.rules || []).forEach(function (r) { e[r] = true; }); });
+    (res.name.pairs || []).forEach(function (f) {
+      (f.rules || []).forEach(function (r) { e[r] = true; }); });
+    (res.checks || []).forEach(function (f) {
+      (f.rules || []).forEach(function (r) { e[r] = true; }); });
+    if (res.name.aggregated) e['AGG-1'] = true;
+    if (res.capRule) e[res.capRule] = true;
+    return e;
+  }
+  test('NORM-1 fires when a token carried removable marks', function () {
+    var res = K.compare(rec({ fullName: 'مُحَمَّد' }), rec({ fullName: 'Mohammad' }), { today: TODAY });
+    ok(emittedBy(res)['NORM-1'], 'harakat removal must be cited');
+  });
+  test('HEB-1 fires on a Hebrew geresh', function () {
+    var res = K.compare(rec({ fullName: 'ג׳מאל' }), rec({ fullName: 'Jamal' }), { today: TODAY });
+    ok(emittedBy(res)['HEB-1'], 'the geresh is a letter modifier and says so');
+  });
+  test('AGG-1 fires whenever the score is a multi-token aggregate', function () {
+    var res = K.compare(rec({ fullName: 'Mohammad Ahmad' }), rec({ fullName: 'Mohammad Ahmad' }), { today: TODAY });
+    ok(emittedBy(res)['AGG-1']);
+  });
+  test('CAP-1 fires exactly when a cap lowered the verdict', function () {
+    var capped = K.compare(rec({ fullName: 'Ali', expiry: '2020-01-01' }),
+                           rec({ fullName: 'Ali' }), { today: TODAY });
+    eq(capped.capRule, 'CAP-1', 'a capped verdict cites the capping rule');
+    var clean = K.compare(rec({ fullName: 'Ali' }), rec({ fullName: 'Ali' }), { today: TODAY });
+    eq(clean.capRule, null, 'an uncapped verdict does not');
+  });
+  test('Every rule defined in the registry can be reached by the engine', function () {
+    // The reverse of the existing coverage test: not only does every cited rule
+    // resolve, every defined rule is reachable. This is what would have caught a
+    // rule sitting in the method table that no finding could ever emit.
+    if (typeof require === 'undefined') return;   // browser run: skipped
+    var fs = require('fs');
+    var engineSrc = fs.readFileSync(__dirname + '/engine.js', 'utf8');
+    var rulesSrc = fs.readFileSync(__dirname + '/rules.js', 'utf8');
+    var defined = (rulesSrc.match(/'[A-Z]+-[A-Z0-9]+':/g) || [])
+      .map(function (m) { return m.slice(1, -2); });
+    var unreachable = defined.filter(function (id) {
+      return engineSrc.indexOf(id) < 0;   // cited as a literal or inside a note string
+    });
+    eq(unreachable.join(', '), '', 'rules no finding can emit: ' + unreachable.join(', '));
+  });
+
+  /* ── Every browser-loaded script actually parses ──────────────────────── */
+
+  group('Structural integrity of the shipped files');
+
+  test('Every JavaScript file parses as the browser would load it', function () {
+    // A stray apostrophe in a single-quoted string once shipped a broken
+    // method.js — valid to Node require paths that never touched it, dead in the
+    // browser. This parses each file as a plain script and asserts none throw.
+    if (typeof require === 'undefined') return;   // browser run: skipped
+    var fs = require('fs'), vm = require('vm');
+    var files = ['lexicon.js', 'mrz.js', 'rules.js', 'engine.js', 'cases.js',
+                 'ocr.js', 'method.js', 'app.js', 'tests.js'];
+    var broken = [];
+    files.forEach(function (f) {
+      try { new vm.Script(fs.readFileSync(__dirname + '/' + f, 'utf8'), { filename: f }); }
+      catch (e) { broken.push(f + ' (' + e.message.slice(0, 40) + ')'); }
+    });
+    eq(broken.join('; '), '', 'files that do not parse: ' + broken.join('; '));
+  });
+  test('The method prose is a non-empty string', function () {
+    if (typeof require === 'undefined') {
+      // In the browser method.js is already loaded; check the global directly.
+      ok(typeof METHOD_PROSE === 'string' && METHOD_PROSE.length > 1000,
+         'METHOD_PROSE must render, not be undefined');
+      return;
+    }
+    var fs = require('fs'), vm = require('vm');
+    var ctx = {};
+    vm.createContext(ctx);
+    vm.runInContext(fs.readFileSync(__dirname + '/method.js', 'utf8'), ctx);
+    ok(typeof ctx.METHOD_PROSE === 'string' && ctx.METHOD_PROSE.length > 1000,
+       'METHOD_PROSE must render, not be undefined');
+  });
+
+  /* ── Case note pastes cleanly ─────────────────────────────────────────── */
+
+  group('The case note holds its width');
+
+  test('No case-note line exceeds the width it promises', function () {
+    var longName = new Array(11).join('Mohammad ').trim();
+    var res = K.compare(
+      rec({ fullName: longName, address: 'Some Very Long Street Name, Cityville' }),
+      rec({ fullName: 'Mohammad' }), { today: TODAY });
+    var over = K.caseNote(res).split('\n').filter(function (l) { return l.length > 76; });
+    eq(over.length, 0, 'lines over 76 chars: ' + JSON.stringify(over.slice(0, 2)));
+  });
+
   /* ── Machine-readable zone ────────────────────────────────────────────── */
 
   group('Machine-readable zone (ICAO Doc 9303)');
@@ -590,6 +774,34 @@ var TEST_SUITE = (function () {
             '9403073M3105146ISR<<<<<<<<<<<6\n' +
             'ALSAYED<<MOHAMMAD<AHMAD<<<<<<<';
 
+  test('A supplied zone that will not parse refers rather than being ignored', function () {
+    var res = K.compare(rec({ fullName: 'Ali', mrz: 'this is not a zone' }),
+                        rec({ fullName: 'Ali' }), { today: TODAY });
+    ok(res.hardStops.some(function (h) { return h.rule === 'MRZ-4'; }),
+       'an unreadable MRZ is itself a reason to look closer');
+  });
+  test('The MRZ nationality cross-check bridges alpha-2 and alpha-3', function () {
+    // The record carries IL; the zone carries ISR. They describe the same
+    // country and must agree, not collide on the code system.
+    var mrz = M.buildTD3({ documentCode: 'P<', issuingState: 'ISR', surname: 'HASSAN',
+      givenNames: 'SAMIR', documentNumber: 'M1234567', nationality: 'ISR',
+      dob: '1994-03-07', sex: 'M', expiry: '2030-01-01', personalNumber: '' });
+    var agree = K.compare(
+      rec({ fullName: 'Samir Hassan', docType: 'passport', docNumber: 'M1234567',
+            country: 'IL', dob: '1994-03-07', expiry: '2030-01-01', mrz: mrz }),
+      rec({ fullName: 'Samir Hassan', docType: 'passport', docNumber: 'M1234567', country: 'IL' }),
+      { today: TODAY });
+    var x = agree.checks.filter(function (c) { return /MRZ vs printed/.test(c.field); })[0];
+    eq(x.statusLabel, 'Agrees', 'ISR maps to IL, so the zone agrees with the record');
+
+    var clash = K.compare(
+      rec({ fullName: 'Samir Hassan', docType: 'passport', docNumber: 'M1234567',
+            country: 'JO', dob: '1994-03-07', expiry: '2030-01-01', mrz: mrz }),
+      rec({ fullName: 'Samir Hassan', docType: 'passport', docNumber: 'M1234567', country: 'JO' }),
+      { today: TODAY });
+    ok(clash.hardStops.some(function (h) { return h.rule === 'MRZ-3'; }),
+       'a record claiming JO against an ISR zone is a real disagreement');
+  });
   test('The ICAO Doc 9303 specimen validates end to end', function () {
     // The published TD3 specimen (Utopia / Anna Maria Eriksson). Validating
     // against a document somebody else constructed is worth more than any

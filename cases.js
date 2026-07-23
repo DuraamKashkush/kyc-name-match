@@ -23,12 +23,21 @@
 const RECORD_FIELDS = [
   'fullName',
   'dob',
+  'sex',
   'docType',
   'docNumber',
   'expiry',
   'country',
   'address',
   'mrz',
+];
+
+/* Only M and F are compared by the engine; the blank is a real option, not a
+ * placeholder, because a record that does not state a sex asserts nothing. */
+const SEX_OPTIONS = [
+  { value: '', label: 'Unspecified' },
+  { value: 'M', label: 'Male' },
+  { value: 'F', label: 'Female' },
 ];
 
 /* The MRZ strings below were generated with valid ICAO Doc 9303 check digits so
@@ -68,6 +77,7 @@ const SAMPLE_CASES = {
     a: {
       fullName: 'Mohammad Ahmad Al-Sayed',
       dob: '1994-03-07',
+      sex: 'M',
       docType: 'national_id',
       docNumber: '310256789',
       expiry: '2031-05-14',
@@ -78,6 +88,7 @@ const SAMPLE_CASES = {
     b: {
       fullName: 'Mohammad Ahmad Al-Sayed',
       dob: '1994-03-07',
+      sex: 'M',
       docType: 'national_id',
       docNumber: '310256789',
       expiry: '2031-05-14',
@@ -93,6 +104,7 @@ const SAMPLE_CASES = {
     a: {
       fullName: 'محمد أحمد السيد',
       dob: '1994-03-07',
+      sex: 'M',
       docType: 'passport',
       docNumber: 'M1234567',
       expiry: '2029-08-22',
@@ -103,6 +115,7 @@ const SAMPLE_CASES = {
     b: {
       fullName: 'Muhammed Elsayed',
       dob: '1994-03-07',
+      sex: 'M',
       docType: 'passport',
       docNumber: 'M1234567',
       expiry: '2029-08-22',
@@ -118,6 +131,7 @@ const SAMPLE_CASES = {
     a: {
       fullName: 'מוחמד אחמד אלסייד',
       dob: '1994-03-07',
+      sex: 'M',
       docType: 'national_id',
       docNumber: '310256789',
       expiry: '2031-05-14',
@@ -128,6 +142,7 @@ const SAMPLE_CASES = {
     b: {
       fullName: 'Mohammad Ahmad Al-Sayed',
       dob: '1994-07-03',
+      sex: 'M',
       docType: 'national_id',
       docNumber: '310256789',
       expiry: '2031-05-14',
@@ -145,6 +160,7 @@ const SAMPLE_CASES = {
     a: {
       fullName: 'محمد أحمد السيد',
       dob: '1994-03-07',
+      sex: 'M',
       docType: 'national_id',
       docNumber: '310256789',
       expiry: '2031-05-14',
@@ -155,6 +171,7 @@ const SAMPLE_CASES = {
     b: {
       fullName: 'מוחמד אחמד אלסייד',
       dob: '1994-03-07',
+      sex: 'M',
       docType: 'national_id',
       docNumber: '310256789',
       expiry: '2031-05-14',
@@ -172,6 +189,7 @@ const SAMPLE_CASES = {
     a: {
       fullName: 'محمد أحمد السيد',
       dob: '1994-03-07',
+      sex: 'M',
       docType: 'passport',
       docNumber: 'M1234567',
       expiry: '2029-08-22',
@@ -182,11 +200,40 @@ const SAMPLE_CASES = {
     b: {
       fullName: 'Mohammad Ahmad Al-Sayed',
       dob: '1994-03-07',
+      sex: 'M',
       docType: 'national_id',
       docNumber: '310256789',
       expiry: '2031-05-14',
       country: 'IL',
       address: 'Umm al-Fahm',
+    },
+  },
+
+  siblings: {
+    label: 'Brother vs sister',
+    blurb:
+      'Samir and Samira, same family name and birthday. A masculine and feminine name ' +
+      'reduce to the same consonants, so on names alone they match perfectly — the ' +
+      'recorded sex is the one thing that separates them, and it caps the match.',
+    a: {
+      fullName: 'Samir Hassan',
+      dob: '1996-09-12',
+      sex: 'M',
+      docType: 'national_id',
+      docNumber: '204938278',
+      expiry: '2030-04-18',
+      country: 'IL',
+      address: 'Nazareth',
+    },
+    b: {
+      fullName: 'Samira Hassan',
+      dob: '1996-09-12',
+      sex: 'F',
+      docType: 'passport',
+      docNumber: 'M8842317',
+      expiry: '2029-11-02',
+      country: 'IL',
+      address: 'Nazareth',
     },
   },
 
@@ -197,6 +244,7 @@ const SAMPLE_CASES = {
     a: {
       fullName: 'Mohammad Ahmad Al-Sayed',
       dob: '1994-03-07',
+      sex: 'M',
       docType: 'passport',
       docNumber: 'M1234567',
       expiry: '2029-08-22',
@@ -207,6 +255,7 @@ const SAMPLE_CASES = {
     b: {
       fullName: 'Mahmoud Ahmad Al-Sharif',
       dob: '1991-11-22',
+      sex: 'M',
       docType: 'passport',
       docNumber: 'K7781234',
       expiry: '2024-02-10',
@@ -219,6 +268,7 @@ const SAMPLE_CASES = {
 const EMPTY_RECORD = {
   fullName: '',
   dob: '',
+  sex: '',
   docType: 'passport',
   docNumber: '',
   expiry: '',

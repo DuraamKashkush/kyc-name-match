@@ -420,6 +420,7 @@ var OCR = (function () {
         fromMrz('expiry', f.expiry, 'Expiry', true);
         fromMrz('docNumber', f.documentNumber, 'Document number', true);
         fromMrz('fullName', f.name && f.name.full, 'Name', false);
+        if (f.sex === 'M' || f.sex === 'F') fromMrz('sex', f.sex, 'Sex', false);
         if (f.nationality && ALPHA3[f.nationality]) {
           fromMrz('country', ALPHA3[f.nationality], 'Issuing country', false);
         }

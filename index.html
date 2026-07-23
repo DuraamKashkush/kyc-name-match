@@ -147,9 +147,11 @@
   <div class="sheet-body">
     <div class="note-actions">
       <button type="button" class="btn btn-small" id="copy-note">Copy</button>
+      <button type="button" class="btn btn-small" id="download-note">Download .txt</button>
       <span class="copy-status" id="copy-status" role="status"></span>
     </div>
-    <textarea id="note-text" rows="20" readonly spellcheck="false"></textarea>
+    <textarea id="note-text" rows="20" readonly spellcheck="false"
+      aria-label="Case note, plain text"></textarea>
   </div>
 </dialog>
 

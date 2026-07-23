@@ -108,11 +108,18 @@ patronymic present in one record and absent from the other — the most common b
 difference in this data — is noted and weighted lightly rather than treated as a
 contradiction.
 
-**Checklist.** Expiry, date of birth, document number, issuing country, address. These can
-only lower the verdict, never raise it: an expired document is not worth minus fifteen
+**Checklist.** Expiry, date of birth, sex, document number, issuing country, address. These
+can only lower the verdict, never raise it: an expired document is not worth minus fifteen
 points, it is a condition that stops the check. Date of birth distinguishes a genuine
 discrepancy from a keying error — `1994-03-07` against `1994-07-03` is a day/month
-transposition and says so.
+transposition and says so — and a date that is not a real calendar date is reported as a
+defect rather than trusted.
+
+**Sex** is the one discriminator a consonant skeleton is blind to. The feminine ending is
+silent in Arabic — فاطمة is Fatima, not Fatimat — so the skeleton drops it, which is right
+for Fatima but also collapses *Samir* onto *Samira* and *Karim* onto *Karima*. Those are
+different people; nothing in the name separates them, but a recorded sex does, so a
+disagreement caps the outcome. Only M and F are compared; a blank asserts nothing.
 
 One local exception. Israel issues the driving licence against the identity number of its
 holder and prints that number as the licence number, so an Israeli ID card and an Israeli

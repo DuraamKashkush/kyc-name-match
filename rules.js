@@ -16,9 +16,10 @@ const RULES = {
   'NORM-1': {
     name: 'Orthographic normalisation',
     description:
-      'Arabic harakat, tanwin, shadda and tatweel; Hebrew niqqud and geresh; Latin ' +
-      'accents. All optional in writing and almost never present in a system record, ' +
-      'so all removed before comparison.',
+      'Arabic harakat, tanwin, shadda and tatweel; Hebrew niqqud; Latin accents. All ' +
+      'optional in writing and almost never present in a system record, so all removed ' +
+      'before comparison. The Hebrew geresh is not among them — it is a letter modifier, ' +
+      'handled under HEB-1.',
   },
   'ART-1': {
     name: 'Definite article removed',
@@ -187,6 +188,13 @@ const RULES = {
       'A first-of-January date is widely used by registries where only the birth year ' +
       'was known. Treated as a year-only assertion rather than a precise date.',
   },
+  'DATE-1': {
+    name: 'Not a valid date',
+    description:
+      'A date field is not a real calendar date — a bad month or day, or a shape other ' +
+      'than YYYY-MM-DD. It cannot be compared, and a malformed date is a defect in the ' +
+      'record rather than an agreeing value, so it refers.',
+  },
   'EXP-1': {
     name: 'Document expired',
     description:
@@ -294,6 +302,17 @@ const RULES = {
   'CTRY-1': {
     name: 'Issuing country',
     description: 'Whether both records name the same issuing authority.',
+  },
+  'SEX-1': {
+    name: 'Sex',
+    description:
+      'Whether the two records record the same sex. It matters because it is the one ' +
+      'discriminator a consonant-skeleton name match is blind to: the feminine ending is ' +
+      'silent in Arabic — فاطمة is Fatima, not Fatimat — so the skeleton correctly drops ' +
+      'it, which also collapses Samir onto Samira and Karim onto Karima. Those are ' +
+      'different people; a recorded sex is what separates them, so a disagreement caps the ' +
+      'outcome. Only M and F are compared; a blank or unspecified value asserts nothing ' +
+      'and cannot lower a verdict.',
   },
   'ADDR-1': {
     name: 'Address locality',
