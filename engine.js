@@ -413,6 +413,17 @@ var KYC = (function () {
     var pa = skeletonParts(a), pb = skeletonParts(b);
     var s1 = pa.cons, s2 = pb.cons;
     if (!s1.length && !s2.length) {
+      // Neither token has a consonant — a lone initial ("A."), a bare vowel, or
+      // punctuation. If the two are the same token they still match, so an
+      // identical name is not docked for carrying a middle initial; only two
+      // genuinely different vowel-only tokens fail to compare.
+      var na = normalizeToken(a).replace(/[-'’`ʿʼ.\s]/g, '');
+      var nb = normalizeToken(b).replace(/[-'’`ʿʼ.\s]/g, '');
+      if (na && na === nb) {
+        return { score: 1, rules: ['SKEL-1'],
+          reason: '"' + a + '" and "' + b + '" are the same token — an initial or vowel with ' +
+                  'no consonant to reduce, but identical.' };
+      }
       return { score: 0, rules: ['MISS-1'], reason: 'Neither token yields a skeleton.' };
     }
 

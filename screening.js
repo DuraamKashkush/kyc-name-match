@@ -92,8 +92,9 @@
   const SCENARIOS = {
     clearhit: {
       label: 'Clear hit',
-      blurb: 'A Latin query against an Arabic-script listing with aliases. Same person; every ' +
-        'identifier corroborates — a strong match to escalate.',
+      blurb: 'A Latin query against Arabic-script listings. The same person appears on two ' +
+        'lists: a strong match where every identifier corroborates, and a name-only listing ' +
+        'that stays a potential match with nothing to corroborate it.',
       q: { fullName: 'Mohammad Abdullah Al-Farsi', dob: '1975-06-20', sex: 'M', nationality: 'SY' },
     },
     alias: {
@@ -167,7 +168,7 @@
 
   /* ── Run ─────────────────────────────────────────────────────────────── */
 
-  function runScreen() {
+  function doScreen(scroll) {
     const q = readQuery();
     if (!q.fullName) {
       $('#scenario-blurb').textContent = 'Enter a name to screen, or load a scenario above.';
@@ -177,7 +178,15 @@
     renderResults(lastResult);
     $('#note-text').value = KYC.screeningNote(lastResult);
     $('#copy-status').textContent = '';
-    $('#screen-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (scroll) $('#screen-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  function runScreen() { doScreen(true); }
+
+  // Moving the threshold re-screens in place, so the shown result is never stale
+  // against the slider (no scroll, so dragging does not yank the page around).
+  function rescreenOnThreshold() {
+    syncHit();
+    if (lastResult) doScreen(false);
   }
 
   /* ── Render ──────────────────────────────────────────────────────────── */
@@ -421,7 +430,7 @@
     $('#clear-screen').addEventListener('click', clearScreen);
     $('#copy-note').addEventListener('click', copyNote);
     $('#download-note').addEventListener('click', downloadNote);
-    $('#th-hit').addEventListener('input', syncHit);
+    $('#th-hit').addEventListener('input', rescreenOnThreshold);
     $('#th-reset').addEventListener('click', resetHit);
 
     $('#engine-version-footer').textContent = 'Engine ' + KYC.VERSION;

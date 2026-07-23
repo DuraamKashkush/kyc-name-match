@@ -19,6 +19,13 @@ var SAMPLE_WATCHLIST = [
     name: 'محمد عبدالله الفارسي',
     aliases: ['Mohammad Abdullah Al-Farsi', 'Muhammad Abdallah Elfarisi', 'מוחמד עבדאללה אלפארסי'],
     dob: '1975-06-20', sex: 'M', nationality: 'SY' },
+  // The same person carried on a second list — the common real case (one target
+  // on two lists). This copy is name-only, as many real listings are, so a query
+  // corroborates on the first list (STRONG) but has nothing to corroborate on
+  // this one (POTENTIAL): one screen, two classifications, ranked.
+  { id: 'SYN-001B', source: 'Synthetic Sanctions List B', type: 'sanction', program: 'SYN-UN',
+    name: 'محمد عبدالله الفارسي',
+    aliases: ['Mohammad Abdullah Al-Farsi', 'Mohammed A. Alfarsi'] },
   { id: 'SYN-002', source: 'Synthetic Sanctions List', type: 'sanction', program: 'SYN-A',
     name: 'إبراهيم يوسف الحاج',
     aliases: ['Ibrahim Yousef Al-Hajj', 'Ibraheem Yusuf Elhaj'],

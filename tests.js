@@ -352,6 +352,12 @@ var TEST_SUITE = (function () {
     var r = cmp('محمد أحمد السيد', 'Muhammed Elsayed');
     gte(r.score, 85, 'name score');
   });
+  test('An identical name with a middle initial scores 100', function () {
+    // A lone initial reduces to no consonant; matching it against itself must
+    // not dock the score, or an identical record refers instead of matching.
+    eq(cmp('Mohammed A. Alfarsi', 'Mohammed A. Alfarsi').score, 100);
+    ok(cmp('Mohammed A. Alfarsi', 'Mohammed B. Alfarsi').score < 100, 'but different initials differ');
+  });
   test('Hebrew record against Latin record', function () {
     gte(cmp('מוחמד אחמד אלסייד', 'Mohammad Ahmad Al-Sayed').score, 85, 'name score');
   });
@@ -1283,6 +1289,19 @@ var TEST_SUITE = (function () {
   test('Screening is deterministic — a byte-identical note across runs', function () {
     var q = { fullName: 'Mohammad Abdullah Al-Farsi', dob: '1975-06-20', sex: 'M', nationality: 'SY' };
     eq(K.screeningNote(screen(q)), K.screeningNote(screen(q)));
+  });
+  test('One person carried on two lists surfaces as two ranked hits', function () {
+    // SYN-001 and SYN-001B are the same target on different lists — the common
+    // real case. A query must surface both, not collapse or drop one.
+    var r = screen({ fullName: 'Mohammad Abdullah Al-Farsi', dob: '1975-06-20',
+                     sex: 'M', nationality: 'SY' });
+    var ids = r.hits.map(function (h) { return h.entryId; });
+    ok(ids.indexOf('SYN-001') >= 0 && ids.indexOf('SYN-001B') >= 0, 'both lists: ' + ids.join(','));
+    var order = { STRONG: 0, POTENTIAL: 1, DISCOUNTED: 2 };
+    for (var i = 1; i < r.hits.length; i++) {
+      ok(order[r.hits[i - 1].classification] <= order[r.hits[i].classification],
+         'strong hits rank before weaker ones');
+    }
   });
 
   /* ── Reproducibility ──────────────────────────────────────────────────── */
