@@ -66,8 +66,11 @@ var KYC = (function () {
    * skeleton — Samir and Samira — no longer pass as one person; validates dates
    * rather than trusting the caller (DATE-1); caps on an unreadable MRZ and
    * cross-checks its nationality; and now emits NORM-1, HEB-1, AGG-1 and CAP-1,
-   * which described real steps but were never cited. */
-  var VERSION = '1.5.0';
+   * which described real steps but were never cited. 1.6.0 adds watchlist
+   * screening — screen(), buildScreeningIndex(), screeningNote() — matching a
+   * person against a list with a blocking index and secondary-identifier
+   * discounting (SCR-*, CRISK-1). The compare path is unchanged. */
+  var VERSION = '1.6.0';
 
   /* ── Edit costs ────────────────────────────────────────────────────────
    *
@@ -1622,10 +1625,260 @@ var KYC = (function () {
     return lines.join('\n');
   }
 
+  /* ── Screening ─────────────────────────────────────────────────────────────
+   *
+   * The compare tool answers "are these two records the same person?". Screening
+   * answers "does this person appear on a list?" — the same name engine, run
+   * against many entries instead of one. The discipline is deliberately
+   * conservative and mirrors the verification side: THE MACHINE ESCALATES, A
+   * HUMAN DISPOSITIONS. A name hit is never auto-cleared; the result is
+   * "cleared" only when nothing scored above the threshold. Secondary
+   * identifiers can raise confidence or discount a hit — but only on data
+   * actually present, since a list entry with no date of birth cannot be used to
+   * clear a name hit.
+   */
+
+  // Below verification's 85: for screening, a missed true match is worse than a
+  // reviewed false one, so the bar to surface a hit is lower.
+  var SCREEN_DEFAULT_HIT = 75;
+
+  /* Block keys for a name: the consonant skeleton of each token, plus each
+   * skeleton with one class removed (its deletion neighbourhood). Two names that
+   * share a token skeleton — or one a single edit apart — land in a common
+   * block, so the expensive full comparison only runs on plausible candidates
+   * instead of the whole list. The keys are script-independent because the
+   * skeleton is, so an Arabic query blocks against a Latin entry. */
+  function blockKeys(name) {
+    var keys = {};
+    tokenize(name).forEach(function (tok) {
+      var s = skeleton(tok);
+      if (!s) return;
+      keys[s] = true;
+      for (var i = 0; i < s.length; i++) {
+        keys[s.slice(0, i) + s.slice(i + 1)] = true;   // one-deletion neighbours
+      }
+    });
+    return Object.keys(keys);
+  }
+
+  function entryNames(entry) {
+    var names = [entry.name].concat(entry.aliases || []);
+    return names.filter(Boolean);
+  }
+
+  function buildScreeningIndex(list) {
+    var byKey = {};
+    (list || []).forEach(function (entry, idx) {
+      var seen = {};
+      entryNames(entry).forEach(function (nm) {
+        blockKeys(nm).forEach(function (k) {
+          if (seen[k]) return;
+          seen[k] = true;
+          (byKey[k] = byKey[k] || []).push(idx);
+        });
+      });
+    });
+    return { byKey: byKey, list: list || [], size: (list || []).length };
+  }
+
+  /* Secondary-identifier comparison for screening: corroborate / conflict /
+   * unknown. 'unknown' whenever either side is absent — a discount may be made
+   * only on data that is present. */
+  function secondaryDob(qv, ev) {
+    var a = parseDate(qv), b = parseDate(ev);
+    if (!a || !b || a.bad || b.bad) return 'unknown';
+    if (a.iso === b.iso) return 'corroborate';
+    // A day/month transposition is a keying artefact, not a different person.
+    if (a.y === b.y && a.m === b.d && a.d === b.m && a.m !== a.d) return 'corroborate';
+    return 'conflict';
+  }
+  function secondaryExact(qv, ev) {
+    if (!qv || !ev) return 'unknown';
+    return qv === ev ? 'corroborate' : 'conflict';
+  }
+
+  function screen(query, index, opts) {
+    opts = opts || {};
+    query = query || {};
+    var hit = (opts.thresholds && opts.thresholds.hit) || SCREEN_DEFAULT_HIT;
+    var today = opts.today || new Date().toISOString().slice(0, 10);
+    var countryRisk = opts.countryRisk || {};
+    // Accept either a prebuilt index or a raw list.
+    if (index && !index.byKey) index = buildScreeningIndex(index);
+    index = index || buildScreeningIndex([]);
+    var list = index.list;
+
+    var qName = (query.fullName || '').trim();
+
+    // Candidate generation: entries sharing a block key with the query name.
+    var candSet = {};
+    blockKeys(qName).forEach(function (k) {
+      (index.byKey[k] || []).forEach(function (idx) { candSet[idx] = true; });
+    });
+    var candidates = Object.keys(candSet).map(Number);
+
+    var hits = [];
+    candidates.forEach(function (idx) {
+      var entry = list[idx];
+      // Best name score over the entry's primary name and every alias.
+      var best = null;
+      entryNames(entry).forEach(function (nm, i) {
+        var cmp = compareNames(qName, nm);
+        if (!best || cmp.score > best.score) {
+          best = { score: cmp.score, name: nm, pairs: cmp.pairs, isAlias: i > 0 };
+        }
+      });
+      if (!best || best.score < hit) return;
+
+      var rules = ['SCR-1'];
+      if (best.isAlias) rules.push('SCR-5');
+
+      // Secondary identifiers, present-on-both-sides only.
+      var findings = [], corroborated = false, conflicted = false;
+      function addSec(field, status, qv, ev) {
+        if (status === 'unknown') return;
+        findings.push({ field: field, status: status, query: qv, entry: ev });
+        if (status === 'corroborate') corroborated = true;
+        else conflicted = true;
+      }
+      addSec('Date of birth', secondaryDob(query.dob, entry.dob), query.dob, entry.dob);
+      addSec('Sex', secondaryExact(normSex(query.sex), normSex(entry.sex)),
+             normSex(query.sex), normSex(entry.sex));
+      addSec('Nationality',
+             secondaryExact(normCountry(query.nationality), normCountry(entry.nationality)),
+             query.nationality, entry.nationality);
+
+      var classification;
+      if (conflicted) { classification = 'DISCOUNTED'; rules.push('SCR-3'); }
+      else if (corroborated) { classification = 'STRONG'; rules.push('SCR-2'); }
+      else { classification = 'POTENTIAL'; }
+      if (String(entry.type || '').toLowerCase() === 'pep') rules.push('SCR-6');
+
+      hits.push({
+        entryId: entry.id, source: entry.source || '', program: entry.program || '',
+        listType: String(entry.type || 'sanction').toLowerCase(),
+        matchedName: best.name, viaAlias: best.isAlias, nameScore: best.score,
+        pairs: best.pairs, classification: classification,
+        secondary: findings, rules: rules,
+      });
+    });
+
+    // Rank: strong, then potential, then discounted; within each, by score.
+    var order = { STRONG: 0, POTENTIAL: 1, DISCOUNTED: 2 };
+    hits.sort(function (x, y) {
+      if (order[x.classification] !== order[y.classification]) {
+        return order[x.classification] - order[y.classification];
+      }
+      return y.nameScore - x.nameScore;
+    });
+
+    // Country-risk signal for the query's nationality.
+    var cr = null;
+    var nat = normCountry(query.nationality);
+    if (nat && countryRisk[nat]) {
+      cr = { country: nat, level: countryRisk[nat].level,
+             sources: countryRisk[nat].sources || [], rules: ['CRISK-1'] };
+    }
+
+    var actionable = hits.filter(function (h) { return h.classification !== 'DISCOUNTED'; });
+    var disposition = hits.length ? 'POTENTIAL_MATCH' : 'NO_MATCH';
+
+    return {
+      engineVersion: VERSION, evaluatedOn: today,
+      thresholds: { hit: hit },
+      query: query,
+      screened: index.size, candidates: candidates.length,
+      hits: hits, countryRisk: cr,
+      disposition: disposition,
+      dispositionRules: hits.length ? [] : ['SCR-4'],
+      dispositionReason: buildScreenReason(disposition, hits, actionable, hit),
+    };
+  }
+
+  function normCountry(v) { return String(v || '').trim().toUpperCase(); }
+
+  function buildScreenReason(disposition, hits, actionable, hit) {
+    if (disposition === 'NO_MATCH') {
+      return 'No listed name or alias scored at or above the screening threshold of ' + hit +
+             '. The query is cleared against the loaded lists. Screening clears only when ' +
+             'nothing hits — never by dismissing a hit automatically.';
+    }
+    var by = { STRONG: 0, POTENTIAL: 0, DISCOUNTED: 0 };
+    hits.forEach(function (h) { by[h.classification]++; });
+    var parts = [];
+    if (by.STRONG) parts.push(by.STRONG + ' corroborated');
+    if (by.POTENTIAL) parts.push(by.POTENTIAL + ' potential');
+    if (by.DISCOUNTED) parts.push(by.DISCOUNTED + ' discounted');
+    return hits.length + ' hit(s) at or above the threshold of ' + hit + ' (' +
+           parts.join(', ') + '). A person must disposition these against the source data — ' +
+           'the tool escalates, it does not clear a hit on its own.' +
+           (actionable.length === 0
+             ? ' Every hit is discounted by a conflicting identifier; confirm before dismissing.'
+             : '');
+  }
+
+  /* The screening work-product, same discipline as caseNote. */
+  function screeningNote(res) {
+    var L2 = [];
+    var word = res.disposition === 'POTENTIAL_MATCH' ? 'POTENTIAL MATCH' : 'NO MATCH — CLEARED';
+    L2.push('WATCHLIST SCREENING — ' + word);
+    L2.push('='.repeat(60));
+    L2.push('');
+    L2.push('Evaluated:   ' + res.evaluatedOn);
+    L2.push('Engine:      ' + res.engineVersion + ' (deterministic, rule-based)');
+    L2.push('Threshold:   name score >= ' + res.thresholds.hit);
+    L2.push('Screened:    ' + res.screened + ' entries (' + res.candidates +
+            ' scored after blocking)');
+    L2.push('');
+    L2.push('QUERY');
+    L2.push('-'.repeat(60));
+    L2.push(wrap('Name: ' + (res.query.fullName || '(none)'), '', 76, 6));
+    var q = [];
+    if (res.query.dob) q.push('DOB ' + res.query.dob);
+    if (normSex(res.query.sex)) q.push('sex ' + normSex(res.query.sex));
+    if (res.query.nationality) q.push('nationality ' + res.query.nationality);
+    if (q.length) L2.push(q.join(', '));
+    if (res.countryRisk) {
+      L2.push(wrap('[CRISK-1] Country risk: ' + res.countryRisk.country + ' is rated ' +
+                   res.countryRisk.level +
+                   (res.countryRisk.sources.length ? ' (' + res.countryRisk.sources.join('; ') +
+                    ')' : '') + '.', '  '));
+    }
+    L2.push('');
+    L2.push('FINDING');
+    L2.push('-'.repeat(60));
+    L2.push(wrap(res.dispositionReason));
+    L2.push('');
+    if (res.hits.length) {
+      L2.push('HITS');
+      L2.push('-'.repeat(60));
+      res.hits.forEach(function (h, i) {
+        L2.push((i + 1) + '. ' + h.classification + ' — ' + h.matchedName +
+                (h.viaAlias ? ' (alias)' : '') + '  [' + h.nameScore + '/100]');
+        L2.push(wrap(h.source + (h.program ? ', ' + h.program : '') + ' · ' + h.listType +
+                     ' · [' + h.rules.join(', ') + ']', '     '));
+        h.secondary.forEach(function (s) {
+          L2.push(wrap(s.field + ': ' + (s.status === 'corroborate' ? 'agrees' : 'conflicts') +
+                       ' (query ' + (s.query || '—') + ', entry ' + (s.entry || '—') +
+                       ')', '     '));
+        });
+      });
+      L2.push('');
+    }
+    L2.push('-'.repeat(60));
+    L2.push(wrap('Screening is deterministic and rule-based; every hit names the rule that ' +
+      'raised it. It escalates for human disposition and never clears a hit on its own. A ' +
+      'secondary aid, not a system of record.'));
+    return L2.join('\n');
+  }
+
   return {
     VERSION: VERSION,
     compare: compare,
     caseNote: caseNote,
+    screen: screen,
+    buildScreeningIndex: buildScreeningIndex,
+    screeningNote: screeningNote,
     // Exposed for the test suite.
     skeleton: skeleton,
     compareTokens: compareTokens,

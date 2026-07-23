@@ -725,7 +725,7 @@ var TEST_SUITE = (function () {
     if (typeof require === 'undefined') return;   // browser run: skipped
     var fs = require('fs'), vm = require('vm');
     var files = ['lexicon.js', 'mrz.js', 'rules.js', 'engine.js', 'cases.js',
-                 'ocr.js', 'method.js', 'app.js', 'tests.js'];
+                 'ocr.js', 'method.js', 'app.js', 'tests.js', 'lists/sample.js'];
     var broken = [];
     files.forEach(function (f) {
       try { new vm.Script(fs.readFileSync(__dirname + '/' + f, 'utf8'), { filename: f }); }
@@ -1164,6 +1164,124 @@ var TEST_SUITE = (function () {
     var r = sample('different');
     eq(r.verdict, 'NO_MATCH');
     lte(r.nameScore, 60, 'name score');
+  });
+
+  /* ── Watchlist screening ──────────────────────────────────────────────── */
+
+  group('Watchlist screening — a person against a list');
+
+  var WL = (typeof module !== 'undefined' && module.exports)
+    ? require('./lists/sample.js') : { SAMPLE_WATCHLIST: SAMPLE_WATCHLIST,
+                                       SAMPLE_COUNTRY_RISK: SAMPLE_COUNTRY_RISK };
+  var LIST = WL.SAMPLE_WATCHLIST;
+  var RISK = WL.SAMPLE_COUNTRY_RISK;
+  var SIDX = K.buildScreeningIndex(LIST);
+  function screen(q) { return K.screen(q, SIDX, { today: TODAY, countryRisk: RISK }); }
+
+  test('A transliterated query hits its entry across scripts', function () {
+    var r = screen({ fullName: 'Mohammad Abdullah Al-Farsi', dob: '1975-06-20',
+                     sex: 'M', nationality: 'SY' });
+    eq(r.disposition, 'POTENTIAL_MATCH');
+    ok(r.hits.length >= 1, 'a hit');
+    var h = r.hits[0];
+    eq(h.entryId, 'SYN-001');
+    eq(h.classification, 'STRONG', 'DOB+sex+nationality all corroborate');
+    ok(h.rules.indexOf('SCR-1') >= 0 && h.rules.indexOf('SCR-2') >= 0, 'SCR-1 + SCR-2');
+  });
+
+  test('An alias-only match lights up SCR-5 and shows the alias', function () {
+    var r = screen({ fullName: 'Karim Shadid', nationality: 'RU' });
+    var h = r.hits.filter(function (x) { return x.entryId === 'SYN-211'; })[0];
+    ok(h, 'the alias entry is hit');
+    ok(h.viaAlias, 'matched via an alias, not the primary');
+    eq(h.matchedName, 'Karim Shadid', 'the matched name is the alias that hit');
+    ok(h.rules.indexOf('SCR-5') >= 0, 'SCR-5 cited');
+  });
+
+  test('A conflicting date of birth discounts a hit but never drops it', function () {
+    var r = screen({ fullName: 'Fatima Ali Al-Masri', dob: '1999-01-01',
+                     sex: 'F', nationality: 'EG' });
+    var h = r.hits.filter(function (x) { return x.entryId === 'SYN-005'; })[0];
+    ok(h, 'the hit is still surfaced, not silently dropped');
+    eq(h.classification, 'DISCOUNTED');
+    ok(h.rules.indexOf('SCR-3') >= 0, 'SCR-3 cited');
+    eq(r.disposition, 'POTENTIAL_MATCH', 'a discounted hit still escalates for review');
+  });
+
+  test('A name hit cannot be discounted when the entry carries no date of birth', function () {
+    // SYN-004 has no DOB; a query DOB of any value cannot conflict with absence.
+    var r = screen({ fullName: 'Ahmad Nasser Al-Qasim', dob: '2000-01-01',
+                     sex: 'M', nationality: 'SY' });
+    var h = r.hits.filter(function (x) { return x.entryId === 'SYN-004'; })[0];
+    ok(h, 'still a hit');
+    ok(h.classification !== 'DISCOUNTED', 'absence cannot discount: ' + h.classification);
+    var dobFinding = h.secondary.filter(function (s) { return s.field === 'Date of birth'; });
+    eq(dobFinding.length, 0, 'no DOB comparison is asserted at all');
+  });
+
+  test('A query on no list clears — and clearing cites SCR-4', function () {
+    var r = screen({ fullName: 'Jonathan Smith', dob: '1990-05-05', sex: 'M', nationality: 'US' });
+    eq(r.disposition, 'NO_MATCH');
+    eq(r.hits.length, 0);
+    eq(r.dispositionRules.join(','), 'SCR-4');
+  });
+
+  test('A PEP hit is labelled heightened due diligence, not a block', function () {
+    var r = screen({ fullName: 'Abdulrahman Kamal Al-Wazir', dob: '1963-05-05',
+                     sex: 'M', nationality: 'JO' });
+    var h = r.hits.filter(function (x) { return x.entryId === 'SYN-101'; })[0];
+    ok(h, 'the PEP is hit');
+    eq(h.listType, 'pep');
+    ok(h.rules.indexOf('SCR-6') >= 0, 'SCR-6 cited');
+  });
+
+  test("The query's nationality carries a country-risk signal (CRISK-1)", function () {
+    var r = screen({ fullName: 'Someone Unlisted', nationality: 'SY' });
+    ok(r.countryRisk, 'a country-risk annotation');
+    eq(r.countryRisk.level, 'high');
+    ok(r.countryRisk.rules.indexOf('CRISK-1') >= 0, 'CRISK-1 cited');
+  });
+
+  test('The blocking index never drops a true hit', function () {
+    // The index must return a superset of what a brute-force scan would find, or
+    // it would silently miss sanctioned people — the worst failure in screening.
+    function brute(q) {
+      var out = [];
+      LIST.forEach(function (e) {
+        var names = [e.name].concat(e.aliases || []);
+        var best = 0;
+        names.forEach(function (n) { best = Math.max(best, K.compareNames(q, n).score); });
+        if (best >= 75) out.push(e.id);
+      });
+      return out.sort();
+    }
+    ['Mohammad Abdullah Al-Farsi', 'Fatima Ali Al-Masri', 'Karim Shadid',
+     'محمد عبدالله الفارسي', 'Tarek Munir Al-Ali', 'Boris Volkov'].forEach(function (q) {
+      var bf = brute(q);
+      var got = {};
+      screen({ fullName: q }).hits.forEach(function (h) { got[h.entryId] = true; });
+      var missed = bf.filter(function (id) { return !got[id]; });
+      eq(missed.join(','), '', 'blocking missed ' + q + ': ' + missed.join(','));
+    });
+  });
+
+  test('Blocking scores only a small fraction of a large list', function () {
+    if (typeof require === 'undefined') return;   // heavy; Node only
+    var big = LIST.slice();
+    for (var i = 0; i < 50000; i++) {
+      big.push({ id: 'BIG-' + i, source: 'x', type: 'sanction',
+                 name: 'Random Filler ' + i, aliases: [] });
+    }
+    var bidx = K.buildScreeningIndex(big);
+    var r = K.screen({ fullName: 'Mohammad Abdullah Al-Farsi' }, bidx, { today: TODAY });
+    ok(r.candidates < big.length / 20, 'candidates ' + r.candidates + ' of ' + big.length +
+       ' — blocking must cut the field hard');
+    ok(r.hits.some(function (h) { return h.entryId === 'SYN-001'; }), 'still finds the real hit');
+  });
+
+  test('Screening is deterministic — a byte-identical note across runs', function () {
+    var q = { fullName: 'Mohammad Abdullah Al-Farsi', dob: '1975-06-20', sex: 'M', nationality: 'SY' };
+    eq(K.screeningNote(screen(q)), K.screeningNote(screen(q)));
   });
 
   /* ── Reproducibility ──────────────────────────────────────────────────── */

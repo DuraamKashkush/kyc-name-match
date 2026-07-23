@@ -364,6 +364,59 @@ const RULES = {
       'Checks can only lower a verdict, never raise it: an expired document is a ' +
       'condition that stops the check, not a deduction from a score.',
   },
+
+  /* ── Screening (matching a person against a watchlist) ─────────────────── */
+
+  'SCR-1': {
+    name: 'Watchlist name hit',
+    description:
+      'A query name matched a listed name or alias at or above the screening threshold. ' +
+      'That threshold sits below the verification match bar on purpose: in screening a ' +
+      'missed true match is worse than a reviewed false one, so the tool surfaces more and ' +
+      'lets a human decide.',
+  },
+  'SCR-2': {
+    name: 'Secondary identifier corroborates',
+    description:
+      'A date of birth, sex or nationality present on both the query and the list entry ' +
+      'agrees, raising confidence that the name hit is the same person. Corroboration is ' +
+      'only counted where the identifier is present on both sides.',
+  },
+  'SCR-3': {
+    name: 'Secondary identifier conflicts',
+    description:
+      'An identifier present on both sides clearly differs — a different date of birth, a ' +
+      'different sex — which discounts the hit. A discount can be made only on data that is ' +
+      'present: a list entry with no date of birth cannot be used to clear a name hit. A ' +
+      'discounted hit is still surfaced for a human to confirm, never dropped silently.',
+  },
+  'SCR-4': {
+    name: 'Cleared against the list',
+    description:
+      'No listed name or alias scored at or above the screening threshold. Screening clears ' +
+      'only when nothing hits — the tool never dismisses a hit on its own; a person does.',
+  },
+  'SCR-5': {
+    name: 'Matched a known alias',
+    description:
+      'The hit was against a recorded alias (AKA) of the entry rather than its primary ' +
+      'spelling. Catching a match against an alias across transliterations is the case ' +
+      'fuzzy screening exists for.',
+  },
+  'SCR-6': {
+    name: 'Politically exposed person',
+    description:
+      'The hit is a PEP entry, not a sanctions entry. A PEP is a signal for heightened due ' +
+      'diligence, not a prohibition — it is surfaced and labelled as such rather than ' +
+      'treated as a block.',
+  },
+  'CRISK-1': {
+    name: 'Country-risk signal',
+    description:
+      "The query's nationality appears on a published country-risk list — FATF grey or " +
+      'black list, the EU high-risk third countries, or the Basel AML Index. A risk signal ' +
+      'on the country, not the person; it informs the level of review, never decides it.',
+  },
 };
 
 if (typeof module !== 'undefined' && module.exports) {
