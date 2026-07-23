@@ -225,13 +225,6 @@ main {
 
 .card-head h2 { font-size: 17px; }
 
-.card-sub {
-  display: block;
-  margin-top: 2px;
-  font-size: 12px;
-  color: var(--ink-3);
-}
-
 /* ── Capture surface ─────────────────────────────────────────────────────
  *
  * Reading the document is how the form gets filled, so this leads the card

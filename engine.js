@@ -1478,8 +1478,8 @@ var KYC = (function () {
     L2.push('-'.repeat(60));
     // Wrapped and hang-indented like every other block: a long name must not
     // push a line past the width this note promises to hold to.
-    L2.push(wrap('A (identity document): ' + describeRecord(res.recordA), '', 76, 23));
-    L2.push(wrap('B (system record):     ' + describeRecord(res.recordB), '', 76, 23));
+    L2.push(wrap('Record A: ' + describeRecord(res.recordA), '', 76, 10));
+    L2.push(wrap('Record B: ' + describeRecord(res.recordB), '', 76, 10));
     L2.push('');
     L2.push('FINDING');
     L2.push('-'.repeat(60));
