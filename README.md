@@ -2,7 +2,7 @@
 
 **[Open the tool →](https://duraamkashkush.github.io/kyc-name-match/)**  ·  **[Run the test suite →](https://duraamkashkush.github.io/kyc-name-match/tests.html)**
 
-Paste two identity records, get a match / refer / no-match decision, and a written reason for
+Paste two identity records, get a match / review / no-match decision, and a written reason for
 every point awarded or docked. Deterministic, rule-based, and entirely client-side.
 
 ---
@@ -136,7 +136,7 @@ namespaces and the expiry dates run on unrelated schedules. Neither difference i
 mismatch, so neither is held against the comparison: absent evidence is not adverse
 evidence. An alarm that fires on every cross-document check tells a reviewer nothing, and a
 reviewer who learns to dismiss it will dismiss the one that mattered. Within one class of
-document a differing number still refers, and an expired document still caps regardless.
+document a differing number still goes to review, and an expired document still caps regardless.
 
 **Machine-readable zone.** Optional, and the only field that can be verified rather than
 merely compared. The printed passport number carries no check digit — it lives in the MRZ —
@@ -192,7 +192,7 @@ arithmetic and is reported rather than believed. That gives two tiers, treated d
 |---|---|---|
 | zone, check digits verify | arithmetic | confirmed; no second pair of eyes needed |
 | zone, check digits fail | arithmetic | reported as misread-or-altered |
-| printed page | nothing | **capped at refer until a human accepts it** |
+| printed page | nothing | **capped at review until a human accepts it** |
 
 **Misreads are corrected without guessing.** Every position in the zone has a fixed meaning,
 so a letter `O` sitting in the six positions that hold a date of birth is a misread `0` — not

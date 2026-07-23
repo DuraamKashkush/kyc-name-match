@@ -599,7 +599,9 @@
   /* ── Rendering: the finding ──────────────────────────────────────────── */
 
   const BANNER_CLASS = { MATCH: 'match', REFER: 'refer', NO_MATCH: 'nomatch' };
-  const BANNER_TEXT  = { MATCH: 'Match', REFER: 'Refer', NO_MATCH: 'No match' };
+  // The middle verdict is shown as "Review" — a human should look at it. The
+  // internal key stays REFER throughout the engine, so only this label changes.
+  const BANNER_TEXT  = { MATCH: 'Match', REFER: 'Review', NO_MATCH: 'No match' };
 
   function ruleTag(id) {
     const span = el('span', 'rule-id', id);

@@ -170,7 +170,7 @@ const RULES = {
     description:
       'The two dates are the same numbers with day and month exchanged — 1994-03-07 ' +
       'against 1994-07-03. A keying error between date conventions, not evidence of a ' +
-      'different person. Referred for confirmation rather than failed.',
+      'different person. Sent to review rather than failed.',
   },
   'DOB-2': {
     name: 'Year agrees, day and month do not',
@@ -193,7 +193,7 @@ const RULES = {
     description:
       'A date field is not a real calendar date — a bad month or day, or a shape other ' +
       'than YYYY-MM-DD. It cannot be compared, and a malformed date is a defect in the ' +
-      'record rather than an agreeing value, so it refers.',
+      'record rather than an agreeing value, so it goes to review.',
   },
   'EXP-1': {
     name: 'Document expired',
@@ -271,7 +271,7 @@ const RULES = {
     name: 'Document numbers differ',
     description:
       'Both records describe the same class of document but cite different numbers. One ' +
-      'person can hold two — a renewal, a replacement — so this refers rather than fails.',
+      'person can hold two — a renewal, a replacement — so this goes to review rather than failing.',
   },
   'NUM-3': {
     name: 'Document numbers not comparable',

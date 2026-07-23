@@ -1429,10 +1429,10 @@ var KYC = (function () {
       base = 'The names score ' + name.score + ', at or above the match threshold of ' +
              th.match + '.';
     } else if (provisional === 'REFER') {
-      base = 'The names score ' + name.score + ' — above the refer threshold of ' +
+      base = 'The names score ' + name.score + ' — above the review threshold of ' +
              th.refer + ' but below the match threshold of ' + th.match + '.';
     } else {
-      base = 'The names score ' + name.score + ', below the refer threshold of ' +
+      base = 'The names score ' + name.score + ', below the review threshold of ' +
              th.refer + '.';
     }
 
@@ -1453,7 +1453,9 @@ var KYC = (function () {
   }
 
   function label(v) {
-    return v === 'NO_MATCH' ? 'no match' : v.toLowerCase();
+    // Display names for the verdicts. The middle verdict's key is REFER but it
+    // reads as "review" everywhere a person sees it.
+    return v === 'NO_MATCH' ? 'no match' : v === 'REFER' ? 'review' : v.toLowerCase();
   }
 
   /* ── Case note ─────────────────────────────────────────────────────────── */
@@ -1463,7 +1465,7 @@ var KYC = (function () {
    * every rule and records everything needed to reproduce the run. */
   function caseNote(res) {
     var L2 = [];
-    var verdictWord = { MATCH: 'MATCH', REFER: 'REFER', NO_MATCH: 'NO MATCH' }[res.verdict];
+    var verdictWord = { MATCH: 'MATCH', REFER: 'REVIEW', NO_MATCH: 'NO MATCH' }[res.verdict];
 
     L2.push('IDENTITY RECORD COMPARISON — ' + verdictWord);
     L2.push('='.repeat(60));
@@ -1471,7 +1473,7 @@ var KYC = (function () {
     L2.push('Evaluated:   ' + res.evaluatedOn);
     L2.push('Engine:      ' + res.engineVersion + ' (deterministic, rule-based)');
     L2.push('Thresholds:  match >= ' + res.thresholds.match +
-            ', refer >= ' + res.thresholds.refer);
+            ', review >= ' + res.thresholds.refer);
     L2.push('Name score:  ' + res.nameScore + ' / 100');
     L2.push('');
     L2.push('RECORDS COMPARED');

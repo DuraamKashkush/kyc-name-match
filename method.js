@@ -89,7 +89,7 @@ var METHOD_PROSE = [
 
 '<p>Dates are validated, not trusted. A field that is not a real calendar date — a bad ',
 'month or day, the 29th of February in a common year — is a defect in the record, so it is ',
-'reported and referred rather than quietly treated as an agreeing value. And the ',
+'reported and sent to review rather than quietly treated as an agreeing value. And the ',
 'machine-readable zone carries a nationality in three-letter form (ISR) that is checked ',
 'against the record\'s two-letter country (IL) once the two code systems are bridged, so a ',
 'zone that belongs to a different country than the record claims is caught.</p>',
@@ -111,7 +111,7 @@ var METHOD_PROSE = [
 'mismatch, so neither is held against the comparison. <strong>Absent evidence is not ',
 'adverse evidence.</strong> An alarm that fires on every cross-document check tells a ',
 'reviewer nothing, and a reviewer who learns to dismiss it will dismiss the one that ',
-'mattered. Within a single class of document a differing number still refers, and an ',
+'mattered. Within a single class of document a differing number still goes to review, and an ',
 'expired document still caps whatever else is true.</p>',
 
 '<h2>Sound classes</h2>',
@@ -185,12 +185,12 @@ var METHOD_PROSE = [
 '<p>There is no Hebrew letter for <bdi>غ</bdi>, so records write <bdi>ר</bdi> — with the ',
 'geresh in careful transcription, and usually without it in practice. Where the geresh is ',
 'present the two match outright. Where it has been dropped, <bdi>غانم</bdi> against ',
-'<bdi>ראנם</bdi> is charged as a near-miss and lands on <strong>refer</strong> rather than ',
+'<bdi>ראנם</bdi> is charged as a near-miss and lands on <strong>review</strong> rather than ',
 'match.</p>',
 
 '<p>That is deliberate. Without the mark, the Hebrew spelling genuinely does not distinguish ',
 'Ghanem from a name actually spelled with ר, and the same is true of <bdi>ת</bdi> for both t ',
-'and th. Referring an ambiguous pair to a human is the honest answer; scoring it as a match ',
+'and th. Sending an ambiguous pair to review is the honest answer; scoring it as a match ',
 'would be inventing a distinction the record does not contain.</p>',
 
 '<h2>What this approach cannot do</h2>',
@@ -273,7 +273,7 @@ var METHOD_PROSE = [
 '<table class="translit">',
 '<tr><td>Zone, check digits verify</td><td>confirmed by arithmetic — no second pair of eyes needed</td></tr>',
 '<tr><td>Zone, check digits fail</td><td>a misread or a document that does not add up; reported either way</td></tr>',
-'<tr><td>Printed page</td><td>nothing can validate it — capped at refer until a human accepts it</td></tr>',
+'<tr><td>Printed page</td><td>nothing can validate it — capped at review until a human accepts it</td></tr>',
 '</table>',
 
 '<p>Because the zone repeats the name, date of birth, expiry and document number in a form ',
