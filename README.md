@@ -209,13 +209,49 @@ it with the viewer's own fonts would make the demo depend on their machine. The
 specimen uses **UTO / Utopia**, the fictional state from ICAO Doc 9303 itself, so nothing in
 this repo resembles a real country's document. The image never leaves the browser.
 
+## Screening a name against a list
+
+The compare tool asks whether two records are the same person. The
+[screening page](https://duraamkashkush.github.io/kyc-name-match/screening.html) asks whether a
+person is on a **watchlist** — the same name engine, run against many entries instead of one.
+It is the task the transliteration problem hurts most: sanctions lists are full of Arabic
+names, and the false positives a naive matcher throws are what buries a compliance team.
+
+Same discipline as the compare side, in mirror: **the machine escalates, a person
+dispositions.** Screening never clears a name hit on its own — a result is cleared only when
+nothing scores above the threshold, which sits *below* the verification bar because a missed
+true match is worse than a reviewed false one. Secondary identifiers (date of birth, sex,
+nationality) present on **both** sides corroborate a hit or discount it — but a discount can be
+made only on data that is present, so an entry with no date of birth cannot be cleared on one,
+and a discounted hit is surfaced for review, never dropped. Every hit names its rule
+(`SCR-1`…`SCR-6`, `CRISK-1`) exactly like a comparison.
+
+A **blocking index** keeps it fast at real-list scale: each entry name is keyed by its
+consonant skeleton and that skeleton one letter apart, so the full comparison runs only on
+plausible candidates. The key is script-independent, so an Arabic query blocks against a Latin
+listing, and a test proves the index never drops a hit the exhaustive scan would find.
+
+The page ships a **synthetic sample list**. To screen against **real** lists, run the loader:
+
+```
+node tools/load-lists.js          # sanctions (OpenSanctions: OFAC, UN, EU, …)
+node tools/load-lists.js --peps   # also PEPs — larger, and CC-BY-NC
+```
+
+It writes `lists/live.js`, which the page uses if present. That file is **git-ignored**, so
+real lists are never published by accident; force-add it (`git add -f lists/live.js`) to put
+them on the site. Sources and licences are in [SOURCES.md](SOURCES.md) — note OpenSanctions is
+CC-BY-NC (fine personal/non-commercial, a licence is needed for commercial use). The name you
+screen is matched in your browser and never transmitted, which is why the tool can live on a
+public URL and never expose it. It is a personal secondary-check aid, not a system of record.
+
 ## Tests
 
 ```
 node tests.js
 ```
 
-105 assertions, no framework, no test runner. The same file runs in the browser at
+154 assertions, no framework, no test runner. The same file runs in the browser at
 [tests.html](https://duraamkashkush.github.io/kyc-name-match/tests.html).
 
 Roughly half of them exist to hold the engine **back**. An engine tuned to match aggressively
@@ -230,17 +266,23 @@ silent ة and the pronounced ه identically. The other compares the Method page'
 sound-class table against the maps the engine actually runs on — that drifted once during
 development, which is why it is now a test.
 
-## The data is synthetic
+## The data
 
-Every name, document number, address and machine-readable zone in this repository is invented.
-No real person, real document or real customer record appears anywhere in it. The Israeli ID
-numbers and the MRZ strings in the sample cases were constructed with arithmetically valid
-check digits so the validation rules have something real to verify; they correspond to no
-issued document. The one exception is the ICAO Doc 9303 specimen used in the tests, which is
-the published example from the standard itself.
+Everything committed to this repository is either **synthetic** or **public reference data** —
+never anyone's private record. The compare tool's sample cases, and the screening page's
+default list, are entirely invented: no real person, document or customer appears in them. The
+Israeli ID numbers and MRZ strings carry arithmetically valid check digits so the rules have
+something real to verify but correspond to no issued document; the one real artefact is the
+ICAO Doc 9303 specimen used in the tests, the published example from the standard.
 
-Built from public sources only: FATF guidance on customer due diligence, ICAO Doc 9303 for the
-travel-document number field, the published Israeli identity number check-digit scheme, and
+The screening page can additionally load **real public watchlists** (sanctions, PEPs, country
+risk) via `tools/load-lists.js` — see [SOURCES.md](SOURCES.md) for each source and its licence.
+A sanctions list is published precisely to be screened against, so using it is legitimate; the
+one thing that is never committed or transmitted is **the name you screen**, which is typed at
+runtime and matched in your browser.
+
+Built from public sources only: FATF guidance, ICAO Doc 9303, the published Israeli identity
+number check-digit scheme, OpenSanctions and the government sanctions lists it aggregates, and
 standard Arabic and Hebrew orthography.
 
 ## Running it locally

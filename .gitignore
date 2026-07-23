@@ -1,0 +1,11 @@
+# Real watchlist data produced by tools/load-lists.js.
+#
+# Git-ignored on purpose: real lists are never published by accident. The public
+# site ships the synthetic sample (lists/sample.js). To put real lists on the
+# site you force-add this file deliberately — `git add -f lists/live.js` — after
+# checking the source licences (OpenSanctions is CC-BY-NC; see SOURCES.md).
+#
+# The customer name you screen is never written here or anywhere: it is typed at
+# runtime and matched in the browser.
+lists/live.js
+lists/live/

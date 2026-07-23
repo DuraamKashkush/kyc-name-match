@@ -11,12 +11,18 @@
 
   const { $, $$, el, bdi, ruleTag } = UI;
 
-  /* The list the page screens against. On this public page it is the synthetic
-   * sample; a local build swaps in lists/live/* (see SOURCES.md). */
-  const LIST = (typeof SAMPLE_WATCHLIST !== 'undefined') ? SAMPLE_WATCHLIST : [];
-  const RISK = (typeof SAMPLE_COUNTRY_RISK !== 'undefined') ? SAMPLE_COUNTRY_RISK : {};
+  /* The list the page screens against. If the loader has produced real lists
+   * (lists/live.js defines LIVE_WATCHLIST) they are used; otherwise the page
+   * falls back to the synthetic sample. Either way the query stays in the
+   * browser — only the reference list differs. */
+  const LIVE = (typeof LIVE_WATCHLIST !== 'undefined') && LIVE_WATCHLIST.length;
+  const LIST = LIVE ? LIVE_WATCHLIST
+    : (typeof SAMPLE_WATCHLIST !== 'undefined') ? SAMPLE_WATCHLIST : [];
+  const RISK = LIVE && typeof LIVE_COUNTRY_RISK !== 'undefined' ? LIVE_COUNTRY_RISK
+    : (typeof SAMPLE_COUNTRY_RISK !== 'undefined') ? SAMPLE_COUNTRY_RISK : {};
+  const META = (typeof LIVE_META !== 'undefined') ? LIVE_META : null;
   const INDEX = KYC.buildScreeningIndex(LIST);
-  const IS_SAMPLE = true;   // flipped to false by a loader-aware build
+  const IS_SAMPLE = !LIVE;
 
   const DEFAULT_HIT = 75;
   let lastResult = null;
@@ -361,9 +367,18 @@
 
     const sanctions = LIST.filter((e) => (e.type || 'sanction') !== 'pep').length;
     $('#list-summary').textContent =
-      'against ' + LIST.length + ' entries (' + sanctions + ' sanctions, ' +
-      (LIST.length - sanctions) + ' PEP)';
-    $('#data-pill').textContent = IS_SAMPLE ? 'Synthetic sample list' : 'Live lists loaded';
+      'against ' + LIST.length.toLocaleString() + ' entries (' + sanctions.toLocaleString() +
+      ' sanctions, ' + (LIST.length - sanctions).toLocaleString() + ' PEP)';
+    $('#data-pill').textContent = IS_SAMPLE
+      ? 'Synthetic sample list'
+      : 'Live lists' + (META && META.generatedOn ? ' · ' + META.generatedOn : '');
+
+    // The sample scenarios are written against the synthetic list; on a live
+    // build they would mostly just clear, so hide them.
+    if (!IS_SAMPLE) {
+      $('#scenario-buttons').hidden = true;
+      $('#scenario-blurb').hidden = true;
+    }
 
     $('#screen-form').addEventListener('submit', (e) => { e.preventDefault(); runScreen(); });
     $('#clear-screen').addEventListener('click', clearScreen);

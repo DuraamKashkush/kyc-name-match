@@ -301,6 +301,38 @@ var METHOD_PROSE = [
 
 '<p>The image itself never leaves the browser, and neither does anything read from it.</p>',
 
+'<h2>Screening a name against a list</h2>',
+
+'<p>The compare tool asks whether two records are the same person. Screening asks whether a ',
+'person is on a list — the same name engine, run against many entries instead of one. It is ',
+'the task the transliteration problem hurts most: a watchlist is full of Arabic names, and ',
+'the false positives a naive matcher throws are exactly what buries a compliance team.</p>',
+
+'<p><strong>The machine escalates, a person dispositions.</strong> This mirrors the compare ',
+'side&rsquo;s &ldquo;checks can only lower a verdict&rdquo;: screening never clears a name hit ',
+'on its own. A result is cleared only when nothing scores above the threshold — and that ',
+'threshold sits <em>below</em> the verification match bar, because a missed true match is ',
+'worse than a reviewed false one, so the tool surfaces more and lets a human decide.</p>',
+
+'<p>Secondary identifiers separate the real hit from the coincidence. A date of birth, sex or ',
+'nationality present on <em>both</em> the query and the list entry can corroborate a hit and ',
+'raise it to a strong match, or conflict and discount it. The discipline that matters: a ',
+'discount can be made <strong>only on data that is present</strong>. A sanctions entry with ',
+'no date of birth cannot be cleared on one, and a discounted hit is still surfaced for a ',
+'person to confirm — never dropped silently.</p>',
+
+'<p>A blocking index keeps it fast at real-list scale. Each entry name is keyed by its ',
+'consonant skeleton and that skeleton one letter apart, so the expensive comparison runs only ',
+'on plausible candidates rather than every entry. The key is script-independent — the ',
+'skeleton is — so an Arabic query blocks against a Latin listing, and the index is proven ',
+'never to drop a hit the exhaustive scan would find.</p>',
+
+'<p>The reference lists are real, public data — sanctions lists are published to be screened ',
+'against — attributed to their sources. A PEP hit is a signal for heightened due diligence, ',
+'not a block, and is labelled as such. The query itself is never sent anywhere: it is matched ',
+'here, in your browser, which is why the tool can sit on a public URL and never expose the ',
+'name you screened.</p>',
+
 '<h2>Every rule the engine can cite</h2>',
 
 '<p>This table is generated from the same registry the engine runs on, so it cannot drift ',
