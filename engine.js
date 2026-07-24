@@ -1462,8 +1462,7 @@ var KYC = (function () {
     }
 
     return base + ' A field check lowered the outcome from ' + label(provisional) +
-           ' to ' + label(verdict) + ' — see the capped conditions below. Checks can only ' +
-           'lower a verdict, never raise it.';
+           ' to ' + label(verdict) + ' — see below.';
   }
 
   function label(v) {
@@ -1812,9 +1811,8 @@ var KYC = (function () {
 
   function buildScreenReason(disposition, hits, actionable, hit) {
     if (disposition === 'NO_MATCH') {
-      return 'No listed name or alias scored at or above the screening threshold of ' + hit +
-             '. The query is cleared against the loaded lists. Screening clears only when ' +
-             'nothing hits — never by dismissing a hit automatically.';
+      return 'No name or alias scored at or above the threshold (' + hit +
+             '). Cleared against the loaded lists.';
     }
     var by = { STRONG: 0, POTENTIAL: 0, DISCOUNTED: 0 };
     hits.forEach(function (h) { by[h.classification]++; });
@@ -1822,12 +1820,9 @@ var KYC = (function () {
     if (by.STRONG) parts.push(by.STRONG + ' corroborated');
     if (by.POTENTIAL) parts.push(by.POTENTIAL + ' potential');
     if (by.DISCOUNTED) parts.push(by.DISCOUNTED + ' discounted');
-    return hits.length + ' hit(s) at or above the threshold of ' + hit + ' (' +
-           parts.join(', ') + '). A person must disposition these against the source data — ' +
-           'the tool escalates, it does not clear a hit on its own.' +
-           (actionable.length === 0
-             ? ' Every hit is discounted by a conflicting identifier; confirm before dismissing.'
-             : '');
+    return (hits.length === 1 ? '1 hit' : hits.length + ' hits') +
+           ' at or above the threshold (' + hit + '): ' + parts.join(', ') + '.' +
+           (actionable.length === 0 ? ' All discounted — confirm before dismissing.' : '');
   }
 
   /* The screening work-product, same discipline as caseNote. */

@@ -92,39 +92,32 @@
   const SCENARIOS = {
     clearhit: {
       label: 'Clear hit',
-      blurb: 'A Latin query against Arabic-script listings. The same person appears on two ' +
-        'lists: a strong match where every identifier corroborates, and a name-only listing ' +
-        'that stays a potential match with nothing to corroborate it.',
+      blurb: 'The same person on two lists — a detailed listing (strong) and a name-only one (potential).',
       q: { fullName: 'Mohammad Abdullah Al-Farsi', dob: '1975-06-20', sex: 'M', nationality: 'SY' },
     },
     alias: {
       label: 'Alias hit',
-      blurb: 'The query matches a recorded alias, not the primary name — the case fuzzy ' +
-        'screening exists for. Lights up SCR-5.',
+      blurb: 'Matches a recorded alias, not the primary name.',
       q: { fullName: 'Karim Shadid', nationality: 'RU' },
     },
     discounted: {
       label: 'False positive',
-      blurb: 'The name matches, but the date of birth clearly differs — the hit is discounted. ' +
-        'Still surfaced for a human to confirm, never dropped.',
+      blurb: 'Name matches, but the date of birth conflicts — discounted.',
       q: { fullName: 'Fatima Ali Al-Masri', dob: '1999-01-01', sex: 'F', nationality: 'EG' },
     },
     nodiscount: {
       label: 'Cannot discount',
-      blurb: 'The name matches an entry that carries no date of birth. A discount can only be ' +
-        'made on data that is present, so this stays a live hit.',
+      blurb: 'The entry carries no date of birth — nothing to discount on.',
       q: { fullName: 'Ahmad Nasser Al-Qasim', dob: '2000-01-01', sex: 'M', nationality: 'SY' },
     },
     pep: {
       label: 'PEP',
-      blurb: 'A politically exposed person: a signal for heightened due diligence, not a block. ' +
-        'Labelled as such under SCR-6.',
+      blurb: 'A politically exposed person — heightened due diligence, not a block.',
       q: { fullName: 'Abdulrahman Kamal Al-Wazir', dob: '1963-05-05', sex: 'M', nationality: 'JO' },
     },
     clear: {
       label: 'Cleared',
-      blurb: 'Nobody on the list scores above the threshold. Screening clears only when nothing ' +
-        'hits — it never dismisses a hit on its own.',
+      blurb: 'Nobody scores above the threshold — cleared.',
       q: { fullName: 'Jonathan Smith', dob: '1990-05-05', sex: 'M', nationality: 'GB' },
     },
   };
@@ -239,7 +232,6 @@
       const group = el('div', 'group');
       const head = el('div', 'group-head');
       head.appendChild(el('h3', null, res.hits.length === 1 ? '1 hit' : res.hits.length + ' hits'));
-      head.appendChild(el('span', null, 'a person dispositions these'));
       group.appendChild(head);
       res.hits.forEach((h) => group.appendChild(renderHit(h, res.query.fullName)));
       card.appendChild(group);
@@ -304,19 +296,13 @@
       if (agree.length) bits.push(agree.join(', ') + ' agree' + (agree.length === 1 ? 's' : ''));
       clash.forEach((s) => bits.push(s.field.toLowerCase() + ' conflicts (you have ' +
         (s.query || '—') + ', the list has ' + (s.entry || '—') + ')'));
+      // Just the facts — the badge already says Strong / Discounted / PEP, so no
+      // editorial tail on top of it. The conflicting values are the "why".
       let sentence = bits.join('; ') + '.';
-      sentence = sentence.charAt(0).toUpperCase() + sentence.slice(1);
-      if (h.classification === 'DISCOUNTED') sentence += ' Discounted — confirm before dismissing.';
-      else if (h.classification === 'STRONG') sentence += ' A strong match to escalate.';
-      secLine.appendChild(document.createTextNode(sentence));
+      secLine.appendChild(document.createTextNode(sentence.charAt(0).toUpperCase() + sentence.slice(1)));
     } else {
       secLine.appendChild(document.createTextNode(
-        'No date of birth, sex or nationality is present on both sides, so nothing corroborates ' +
-        'or discounts the name — treat as a potential match.'));
-    }
-    if (h.listType === 'pep') {
-      secLine.appendChild(document.createTextNode(
-        ' This is a PEP: heightened due diligence, not a block.'));
+        'No date of birth, sex or nationality on both sides to corroborate or discount.'));
     }
     item.appendChild(secLine);
 

@@ -584,7 +584,6 @@
       const h = el('h3', null, 'Capped the outcome ');
       if (res.capRule) h.appendChild(ruleTag(res.capRule));   // CAP-1: the capping mechanism itself
       head.appendChild(h);
-      head.appendChild(el('span', null, 'these can only lower it'));
       stops.appendChild(head);
 
       res.hardStops.forEach((hs) => {

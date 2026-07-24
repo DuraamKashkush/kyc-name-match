@@ -73,7 +73,7 @@ const SAMPLE_CASES = {
   clean: {
     label: 'Clean match',
     blurb:
-      'Both records agree. The baseline — this is what the engine looks like when nothing is wrong.',
+      'Both records agree — the baseline.',
     a: {
       fullName: 'Mohammad Ahmad Al-Sayed',
       dob: '1994-03-07',
@@ -100,7 +100,7 @@ const SAMPLE_CASES = {
   translit: {
     label: 'Transliteration',
     blurb:
-      'Arabic passport against a Latin-script system record. Different spelling, different article, patronymic dropped — same person. Naive comparison scores this near zero.',
+      'Arabic passport vs a Latin record — same person, near-zero string match.',
     a: {
       fullName: 'محمد أحمد السيد',
       dob: '1994-03-07',
@@ -127,7 +127,7 @@ const SAMPLE_CASES = {
   dobswap: {
     label: 'Day/month swap',
     blurb:
-      'Hebrew-script ID against a Latin system record. The names agree; the dates are the same two numbers in the other order — a keying error, not a different person.',
+      'Names agree; the dates are day and month swapped — a keying error.',
     a: {
       fullName: 'מוחמד אחמד אלסייד',
       dob: '1994-03-07',
@@ -154,9 +154,7 @@ const SAMPLE_CASES = {
   arabhebrew: {
     label: 'Arabic vs Hebrew',
     blurb:
-      'An Israeli ID card is printed in Arabic and Hebrew; the bank keyed the Hebrew. No ' +
-      'Latin anywhere in this comparison — the two scripts are matched directly against ' +
-      'each other, including the town.',
+      'Arabic ID vs a Hebrew record — no Latin involved.',
     a: {
       fullName: 'محمد أحمد السيد',
       dob: '1994-03-07',
@@ -183,9 +181,7 @@ const SAMPLE_CASES = {
   crossdoc: {
     label: 'Passport vs ID',
     blurb:
-      'One person, two documents. The numbers and expiry dates have nothing to do with ' +
-      'each other, and neither is held against the match — an identifier from a different ' +
-      'document is absent evidence, not adverse evidence.',
+      'One person, two documents — different numbers, not held against the match.',
     a: {
       fullName: 'محمد أحمد السيد',
       dob: '1994-03-07',
@@ -212,9 +208,7 @@ const SAMPLE_CASES = {
   siblings: {
     label: 'Brother vs sister',
     blurb:
-      'Samir and Samira, same family name and birthday. A masculine and feminine name ' +
-      'reduce to the same consonants, so on names alone they match perfectly — the ' +
-      'recorded sex is the one thing that separates them, and it caps the match.',
+      'Samir vs Samira — one name skeleton, separated by sex.',
     a: {
       fullName: 'Samir Hassan',
       dob: '1996-09-12',
@@ -240,7 +234,7 @@ const SAMPLE_CASES = {
   different: {
     label: 'Different person',
     blurb:
-      'Shared patronymic and a given name that collapses to the same consonants. Not the same person — and the system record is on an expired document.',
+      'Similar name, different person — and on an expired document.',
     a: {
       fullName: 'Mohammad Ahmad Al-Sayed',
       dob: '1994-03-07',
