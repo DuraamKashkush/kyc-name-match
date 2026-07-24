@@ -255,6 +255,10 @@ main {
   margin: 32px 0 28px;
 }
 
+/* The screening query card gets the same breathing room the record grid gives
+   the compare page, so the primary button is not crowded against it. */
+#screen-form .card { margin: 32px 0 28px; }
+
 .card {
   background: var(--card);
   border-radius: var(--r-card);
