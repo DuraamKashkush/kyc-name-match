@@ -50,7 +50,14 @@ body {
   font: 400 17px/1.47 var(--sans);
   letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
+  /* Full-height column so a short page (screening, before a result) still puts
+     its footer at the bottom rather than floating it up under the content. */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
+main { flex: 1 0 auto; }
+.foot { flex-shrink: 0; }
 
 h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.022em; }
 
